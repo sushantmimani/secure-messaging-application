@@ -22,10 +22,17 @@ class ChatClient:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # Parameters to allow server to register a user on sign-in
         params = {
-            "command": "login"
+            "command": "login",
+            "username": self.username
         }
         self.sock.sendto(json.dumps(params), (self.sIP, self.UDP_PORT))
         data, address = self.sock.recvfrom(self.BUFFER_SIZE)
+        if data == "Already logged in":
+            print "Already logged in. Terminating this session"
+            sys.exit()
+        if data == "User not registered":
+            print "User not registered. Terminating session"
+            sys.exit()
         challenge = data.split()
         h1 = hashFunc(challenge[0])
         h2 = hashFunc(challenge[1])
@@ -36,6 +43,9 @@ class ChatClient:
         encrypted_message = asymmetric_encryption(server_pub_key, message)
         self.sock.sendto(encrypted_message, (self.sIP, self.UDP_PORT))
         data, address = self.sock.recvfrom(self.BUFFER_SIZE)
+        if data == "Authentication failed!":
+            print "Authentication failed!Terminating session"
+            sys.exit()
         data = pickle.loads(data)
         n1, n2 = symmetric_decryption(self.derived_key, data["iv"], data["tag"], data["message"]).split("\n")
         if n1 == nonce_1:
@@ -47,15 +57,20 @@ class ChatClient:
                 "iv": str(iv),
                 "tag": str(tag)
                 }
-        self.sock.sendto(pickle.dumps(payload), (self.sIP, self.UDP_PORT))
-
-        # Check if new user. Allow further processing only if user is a new user
-        if data == "User exists":
-            print("User exists! Try again!")
-            exit()
+            self.sock.sendto(pickle.dumps(payload), (self.sIP, self.UDP_PORT))
+            data, address = self.sock.recvfrom(self.BUFFER_SIZE)
+            data = pickle.loads(data)
+            n3, n4 = symmetric_decryption(self.derived_key, data["iv"], data["tag"], data["message"]).split("\n")
+            if n3 == nonce_3:
+                print "Server authenticated and registered with server"
+                print("Client Starting...")
+                self.start()
+            else:
+                print "Authentication failed!Terminating"
+                sys.exit()
         else:
-            print("Client Started...")
-            self.start()
+            print "Authentication failed!Terminating"
+            sys.exit()
 
     # Display messages received from other signed-in users
     def printreceivedmessage(self):

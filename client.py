@@ -2,7 +2,8 @@ import argparse, socket, json, sys, time, binascii, os, pickle
 
 from select import select
 from CryptoUtils import hashFunc, keygen, generate_key_from_password, load_public_key, \
-                        symmetric_encryption, asymmetric_encryption, generate_password_hash, symmetric_decryption
+                        symmetric_encryption, asymmetric_encryption, generate_password_hash, symmetric_decryption,\
+                        serialize_public_key
 
 
 class ChatClient:
@@ -37,8 +38,16 @@ class ChatClient:
         data, address = self.sock.recvfrom(self.BUFFER_SIZE)
         data = pickle.loads(data)
         n1, n2 = symmetric_decryption(self.derived_key, data["iv"], data["tag"], data["message"]).split("\n")
-        if n1==nonce_1:
-            print "YESSSS"
+        if n1 == nonce_1:
+            nonce_3 = str(time.time())
+            message = n2+"\n"+nonce_3+"\n"+serialize_public_key(self.public_key)
+            enc_msg, iv, tag = symmetric_encryption(self.derived_key, message)
+            payload = {
+                "message": str(enc_msg),
+                "iv": str(iv),
+                "tag": str(tag)
+                }
+        self.sock.sendto(pickle.dumps(payload), (self.sIP, self.UDP_PORT))
 
         # Check if new user. Allow further processing only if user is a new user
         if data == "User exists":

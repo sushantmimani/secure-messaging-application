@@ -1,6 +1,6 @@
 import argparse, socket, json, time, random, binascii, pickle
 from CryptoUtils import hashFunc, load_users, load_public_key, symmetric_encryption, asymmetric_decryption, \
-    load_private_key, generate_key_from_password
+    load_private_key, generate_key_from_password, symmetric_decryption
 
 
 class ChatServer:
@@ -14,6 +14,7 @@ class ChatServer:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(("", self.PORT))
         self.users = {}
+        self.users_pubkeys = {}
         self.registered_users = load_users()
         self.receive_messages()
 
@@ -42,16 +43,21 @@ class ChatServer:
                         "iv": str(iv),
                         "tag": str(tag)
                     }
-                    print payload
                     self.send_messages(pickle.dumps(payload), address)
+                    data, address = self.sock.recvfrom(self.BUFFER_SIZE)
+                    data = pickle.loads(data)
+                    data = symmetric_decryption(user_derived_key,data["iv"],data["tag"],data["message"]).split("\n")
+                    n2 = data[0]
+                    n3 = data[1]
+                    public_pem = '\n'.join([str(x) for x in data[2:]])
+                    file = open(username + "_public.pem", "w")
+                    file.write(public_pem)
+                    file.close()
+                    if n2 == nonce_2:
+                        self.users[username] = address
+                        self.users_pubkeys[username] = username + "_public.pem"
                 else:
                     print "not match"
-                    # if self.users.get(parsed_data["username"]):
-                    #     self.send_messages("User exists", address)
-                    # else:
-                    #     self.users[parsed_data["username"]] = address
-                    #     self.send_messages("Success", address)
-                    #     self.send_messages("Success1", address)
             if parsed_data["command"] == "send":
                 self.send_messages(json.dumps(self.users.get(parsed_data["user"])), address)
             if parsed_data["command"] == "terminate":

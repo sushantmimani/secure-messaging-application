@@ -6,21 +6,23 @@ from cryptography.hazmat.primitives.ciphers import algorithms, modes, Cipher
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
 
-def serialize_keys(key, name, type):
-    if type == "private":
+def serialize_public_key(key):
+        public_pem = key.public_bytes(encoding=serialization.Encoding.PEM,
+                                      format=serialization.PublicFormat.SubjectPublicKeyInfo)
+        # file = open(name + "_public.pem", "w")
+        # file.write(public_pem)
+        # file.close()
+        return public_pem
+
+
+def serialize_private_key(key):
         private_pem = key.private_bytes(encoding=serialization.Encoding.PEM,
                                         format=serialization.PrivateFormat.TraditionalOpenSSL,
                                         encryption_algorithm=serialization.NoEncryption())
-        file = open(name + "_private.pem", "w")
-        file.write(private_pem)
-        file.close()
-
-    elif type == "public":
-        public_pem = key.public_bytes(encoding=serialization.Encoding.PEM,
-                                      format=serialization.PublicFormat.SubjectPublicKeyInfo)
-        file = open(name + "_public.pem", "w")
-        file.write(public_pem)
-        file.close()
+        # file = open(name + "_private.pem", "w")
+        # file.write(private_pem)
+        # file.close()
+        return private_pem
 
 
 def keygen():
@@ -29,11 +31,7 @@ def keygen():
                                            backend=default_backend())
     public_key = private_key.public_key()
 
-    # serialize_keys(private_key, "server","private")
-    # serialize_keys(public_key, "server", "public")
-
     return private_key, public_key
-
 
 def hashFunc(msg):
     digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
@@ -141,3 +139,5 @@ def asymmetric_decryption(key, message):
     )
     
     return decrypted_message
+
+

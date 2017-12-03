@@ -7,22 +7,22 @@ from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
 
 def serialize_public_key(key):
-        public_pem = key.public_bytes(encoding=serialization.Encoding.PEM,
-                                      format=serialization.PublicFormat.SubjectPublicKeyInfo)
-        # file = open(name + "_public.pem", "w")
-        # file.write(public_pem)
-        # file.close()
-        return public_pem
+    public_pem = key.public_bytes(encoding=serialization.Encoding.PEM,
+                                  format=serialization.PublicFormat.SubjectPublicKeyInfo)
+    # file = open(name + "_public.pem", "w")
+    # file.write(public_pem)
+    # file.close()
+    return public_pem
 
 
-def serialize_private_key(key):
-        private_pem = key.private_bytes(encoding=serialization.Encoding.PEM,
-                                        format=serialization.PrivateFormat.TraditionalOpenSSL,
-                                        encryption_algorithm=serialization.NoEncryption())
-        # file = open(name + "_private.pem", "w")
-        # file.write(private_pem)
-        # file.close()
-        return private_pem
+def serialize_private_key(key, name):
+    private_pem = key.private_bytes(encoding=serialization.Encoding.PEM,
+                                    format=serialization.PrivateFormat.TraditionalOpenSSL,
+                                    encryption_algorithm=serialization.NoEncryption())
+    file = open(name + "_private.pem", "w")
+    file.write(private_pem)
+    file.close()
+    return private_pem
 
 
 def keygen():
@@ -32,6 +32,7 @@ def keygen():
     public_key = private_key.public_key()
 
     return private_key, public_key
+
 
 def hashFunc(msg):
     digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
@@ -43,14 +44,14 @@ def hashFunc(msg):
 def symmetric_encryption(sym_key, message):
     iv = os.urandom(96)
     encryptor = Cipher(algorithms.AES(sym_key), mode=modes.GCM(iv),
-                               backend=default_backend()).encryptor()
+                       backend=default_backend()).encryptor()
     ciphertext = encryptor.update(message) + encryptor.finalize()
     return ciphertext, iv, encryptor.tag
 
 
-def symmetric_decryption(sym_key, iv,tag, message):
+def symmetric_decryption(sym_key, iv, tag, message):
     decryptor = Cipher(algorithms.AES(sym_key), mode=modes.GCM(iv, tag),
-                               backend=default_backend()).decryptor()
+                       backend=default_backend()).decryptor()
     plaintext = decryptor.update(message) + decryptor.finalize()
     return plaintext
 
@@ -89,7 +90,10 @@ def create_hash():
     file.write(json.dumps(passwords))
     file.close()
 
+
 create_hash()
+
+
 def load_users():
     file = open("passwords.json", "r")
     data = json.loads(file.read())
@@ -137,7 +141,45 @@ def asymmetric_decryption(key, message):
             label=None
         )
     )
-    
+
     return decrypted_message
 
 
+def sign_message(key, message):
+    if type(key) == str:
+        pvt_key = load_private_key(key)
+    else:
+        pvt_key = key
+    signature = pvt_key.sign(
+        message,
+        padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.MAX_LENGTH
+        ),
+        hashes.SHA256()
+    )
+    return signature
+
+
+def verify_signature(key, sign, message):
+    if type(key)== str:
+        pub_key = load_public_key(key)
+    else:
+        pub_key = key
+    try:
+        signature = pub_key.verify(sign,
+                                   message, padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+                                   hashes.SHA256()
+                                   )
+        print("Signature Verified")
+        return "VERIFIED"
+    except:
+        print("Signature couldn't be verified")
+        return "FAIL"
+
+# signature = sign_message("sushant_private.pem", "hi")
+# valid = verify_signature("sushant_public.pem", signature, "hi")
+# print valid

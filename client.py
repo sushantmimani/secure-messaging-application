@@ -1,7 +1,8 @@
-import argparse, socket, json, sys, os, binascii
+import argparse, socket, json, sys, time, binascii, os, pickle
 
 from select import select
-from CryptoUtils import hashFunc, keygen, generate_key_from_password, generate_password_hash
+from CryptoUtils import hashFunc, keygen, generate_key_from_password, load_public_key, \
+                        symmetric_encryption, asymmetric_encryption, generate_password_hash, symmetric_decryption
 
 
 class ChatClient:
@@ -12,16 +13,15 @@ class ChatClient:
         self.password = raw_input("Please enter password: ")
         self.sIP = args.sIP
         self.UDP_PORT = int(args.sp)
-        private_key, public_key = keygen()
-        derived_key = generate_key_from_password(self.password)
-        password_hash = generate_password_hash(self.username, self.password)
-
+        self.private_key, self.public_key = keygen()
+        self.password_hash = generate_password_hash(self.username, self.password)
+        self.salt = os.urandom(16)
+        self.derived_key = generate_key_from_password(self.password_hash, self.salt)
         # Initialize a socket for the client
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # Parameters to allow server to register a user on sign-in
         params = {
-            "command": "login",
-            "username": self.username
+            "command": "login"
         }
         self.sock.sendto(json.dumps(params), (self.sIP, self.UDP_PORT))
         data, address = self.sock.recvfrom(self.BUFFER_SIZE)
@@ -29,7 +29,17 @@ class ChatClient:
         h1 = hashFunc(challenge[0])
         h2 = hashFunc(challenge[1])
         answer = str(int(binascii.hexlify(h1), 16) & int(binascii.hexlify(h2), 16))
-        self.sock.sendto(answer, (self.sIP, self.UDP_PORT))
+        nonce_1 = str(time.time())
+        server_pub_key = load_public_key("server_public.pem")
+        message = answer + "\n"+self.username+"\n"+self.password_hash+"\n"+self.salt+"\n"+nonce_1
+        encrypted_message = asymmetric_encryption(server_pub_key, message)
+        self.sock.sendto(encrypted_message, (self.sIP, self.UDP_PORT))
+        data, address = self.sock.recvfrom(self.BUFFER_SIZE)
+        data = pickle.loads(data)
+        n1, n2 = symmetric_decryption(self.derived_key, data["iv"], data["tag"], data["message"]).split("\n")
+        if n1==nonce_1:
+            print "YESSSS"
+
         # Check if new user. Allow further processing only if user is a new user
         if data == "User exists":
             print("User exists! Try again!")

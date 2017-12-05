@@ -96,6 +96,7 @@ class ChatClient:
                 "tag": tag,
                 "signature": signature
             }
+
             # self.sock.sendto(json.dumps({"command": "list"}), (self.sIP, self.UDP_PORT))
             self.sock.sendto(pickle.dumps(new_message), (self.sIP, self.UDP_PORT))
             data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
@@ -110,6 +111,8 @@ class ChatClient:
                 print "<-- No other users online"
             else:
                 print("<-- Signed In Users: {0}").format(','.join(user_list)) # Print user list
+
+
 
     # This function handles the overall working of the client
     def start(self):
@@ -128,11 +131,28 @@ class ChatClient:
                         if input_array[0] == "list":
                             self.print_user_list(input_array)
                         elif input_array[0] == "send":
-                            if len(input_array)<3:
+                            if len(input_array) < 3:
                                 print("Invalid Input!")
                             else:
-                                self.sock.sendto(json.dumps({"command": "send", "user":input_array[1]}),
-                                                 (self.sIP, self.UDP_PORT))
+                                nonce_l = str(time.time())
+                                message = nonce_l
+                                ct, iv, tag = symmetric_encryption(self.derived_key, message)
+                                signature = sign_message(self.private_key, ct)
+                                chat_with_user = input_array[1]
+                                if(chat_with_user == self.username):
+                                    print('Sender and receiver are the same.')
+                                    continue
+                                new_message = {
+                                    "ciphertext": ct,
+                                    "user": self.username,
+                                    "chat_with": chat_with_user,
+                                    "command": "talk-to",
+                                    "iv": iv,
+                                    "tag": tag,
+                                    "signature": signature
+                                }
+
+                                self.sock.sendto(json.dumps(new_message), (self.sIP, self.UDP_PORT))
                                 data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
                                 if data=="null":
                                     print("User doesn't exist!")

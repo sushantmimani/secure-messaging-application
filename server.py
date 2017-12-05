@@ -1,6 +1,6 @@
 import argparse, socket, json, time, random, binascii, pickle, sys
-from CryptoUtils import create_hash, load_users, load_public_key, symmetric_encryption, asymmetric_decryption, \
-    load_private_key, generate_key_from_password, symmetric_decryption, verify_signature
+from CryptoUtils import hashFunc, load_users, load_public_key, symmetric_encryption, asymmetric_decryption, \
+    load_private_key, generate_key_from_password, keygen, symmetric_decryption, verify_signature
 
 
 class ChatServer:
@@ -80,12 +80,13 @@ class ChatServer:
             elif parsed_data["command"] == "list":
                 signature = parsed_data["signature"]
                 user = parsed_data["user"]
-                validity = verify_signature(user+"_public.pem",signature, parsed_data["ciphertext"])
+                validity = verify_signature(user+"_public.pem", signature, parsed_data["ciphertext"])
                 if validity == "VERIFIED":
                     nonce_l = symmetric_decryption(self.users_derivedkeys.get(username),parsed_data["iv"],
                                                    parsed_data["tag"],parsed_data["ciphertext"])
                     nonce_l1 = str(time.time())
                     response = str(self.users)+"\n"+nonce_l+"\n"+nonce_l1
+
                     enc_response, iv, tag = symmetric_encryption(self.users_derivedkeys.get(username), response)
                     payload = {
                         "ciphertext": enc_response,
@@ -93,10 +94,31 @@ class ChatServer:
                         "tag": str(tag)
                     }
                     self.send_messages(pickle.dumps(payload), address)
-                    
+
+            elif parsed_data["command"] == "talk_to":
+                signature = parsed_data["signature"]
+                user = parsed_data["user"]
+                validity = verify_signature(user + "_public.pem", signature, parsed_data["ciphertext"])
+                if validity == "VERIFIED":
+                    nonce_1 = str(time.time())
+                    private_key, public_key = generate_session_key_for()
+                    ticket_to = json.dumps({"shared_key": public_key, "user": user, "nonce": nonce_1})
+                    receiver_res, iv, tag = symmetric_encryption(self.users_derivedkeys.get(parsed_data["chat_with"]), ticket_to)
+                    message_to_receiver = json.dumps({"shared_key": public_key,
+                                                      "receiver": parsed_data["chat_with"],
+                                                      "ticket_to": receiver_res,
+                                                      "nonce": parsed_data["iv"]+1})
+                    enc_response, iv1, tag1 = symmetric_encryption(self.users_derivedkeys.get(user), message_to_receiver)
+                    payload = {"ciphertext": enc_response}
+                    self.send_messages(json.dumps(payload), address)
+                    # generate session key Kab for the client
+
+
     def send_messages(self, message, ip):
         self.sock.sendto(message, ip)
 
+    def generate_session_key_for(self):
+        return keygen()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

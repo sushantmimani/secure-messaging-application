@@ -1,7 +1,7 @@
-import argparse, socket, json, sys, time, binascii, os, pickle, getpass
+import argparse, socket, json, sys, time, binascii, os, pickle, getpass, ast
 
 from select import select
-from CryptoUtils import hashFunc, keygen, generate_key_from_password, load_public_key, \
+from CryptoUtils import create_hash, keygen, generate_key_from_password, load_public_key, \
                         symmetric_encryption, asymmetric_encryption, generate_password_hash, symmetric_decryption,\
                         serialize_public_key, sign_message, serialize_private_key
 
@@ -35,8 +35,8 @@ class ChatClient:
             print "User not registered. Terminating session"
             sys.exit()
         challenge = data.split()
-        h1 = hashFunc(challenge[0])
-        h2 = hashFunc(challenge[1])
+        h1 = create_hash(challenge[0])
+        h2 = create_hash(challenge[1])
         answer = str(int(binascii.hexlify(h1), 16) & int(binascii.hexlify(h2), 16))
         nonce_1 = str(time.time())
         self.server_pub_key = load_public_key("server_public.pem")
@@ -99,14 +99,16 @@ class ChatClient:
             # self.sock.sendto(json.dumps({"command": "list"}), (self.sIP, self.UDP_PORT))
             self.sock.sendto(pickle.dumps(new_message), (self.sIP, self.UDP_PORT))
             data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
+            data = pickle.loads(data)
+            users, ni,ni1 = symmetric_decryption(self.derived_key,data["iv"], data["tag"],data["ciphertext"]).split("\n")
+            temp = ast.literal_eval(users)
             user = []
-            parsed_user = json.loads(data)
-            del parsed_user[self.username] # Delete current user from list of users returned from the server
-            if not parsed_user: # No other users logged in
+            if not users: # No other users logged in
                 print("<-- No other users signed in")
             else:
-                for x in parsed_user:
-                    user.append(x)
+                for x in temp:
+                    if x is not self.username:
+                        user.append(x)
                 print("<-- Signed In Users: {0}").format(','.join(user)) # Print user list
 
     # This function handles the overall working of the client

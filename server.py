@@ -1,5 +1,5 @@
 import argparse, socket, json, time, random, binascii, pickle, sys
-from CryptoUtils import hashFunc, load_users, load_public_key, symmetric_encryption, asymmetric_decryption, \
+from CryptoUtils import create_hash, load_users, load_public_key, symmetric_encryption, asymmetric_decryption, \
     load_private_key, generate_key_from_password, symmetric_decryption, verify_signature
 
 
@@ -35,8 +35,8 @@ class ChatServer:
                     cha = str(time.time()) + " " + str(random.random())
                     self.send_messages(cha, address)
                     challenge = cha.split()
-                    h1 = hashFunc(challenge[0])
-                    h2 = hashFunc(challenge[1])
+                    h1 = create_hash(challenge[0])
+                    h2 = create_hash(challenge[1])
                     answer = str(int(binascii.hexlify(h1), 16) & int(binascii.hexlify(h2), 16))
                     data, address = self.sock.recvfrom(self.BUFFER_SIZE)
                     ans, username, password, salt, nonce_1 = asymmetric_decryption(self.server_pvt_key, data).split(
@@ -85,15 +85,15 @@ class ChatServer:
                     nonce_l = symmetric_decryption(self.users_derivedkeys.get(username),parsed_data["iv"],
                                                    parsed_data["tag"],parsed_data["ciphertext"])
                     nonce_l1 = str(time.time())
-                    response = self.users+"\n"+nonce_l+"\n"+nonce_l1
+                    response = str(self.users)+"\n"+nonce_l+"\n"+nonce_l1
                     enc_response, iv, tag = symmetric_encryption(self.users_derivedkeys.get(username), response)
                     payload = {
                         "ciphertext": enc_response,
                         "iv": str(iv),
                         "tag": str(tag)
                     }
-                    self.send_messages(json.dumps(payload), address)
-
+                    self.send_messages(pickle.dumps(payload), address)
+                    
     def send_messages(self, message, ip):
         self.sock.sendto(message, ip)
 

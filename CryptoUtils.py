@@ -29,12 +29,13 @@ def keygen():
     private_key = rsa.generate_private_key(public_exponent=65537,
                                            key_size=4096,
                                            backend=default_backend())
+    
     public_key = private_key.public_key()
 
     return private_key, public_key
 
 
-def hashFunc(msg):
+def create_hash(msg):
     digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
     digest.update(msg)
     msg_digest = digest.finalize()
@@ -82,7 +83,7 @@ def generate_password_hash(username, password):
     return binascii.hexlify(password_hash)
 
 
-def create_hash():
+def create_password_hash():
     passwords = {"sushant": generate_password_hash("sushant", "sushant@1"),
                  "rohit": generate_password_hash("rohit", "rohit@2"),
                  "user3": generate_password_hash("user3", "user3@3")}
@@ -91,7 +92,6 @@ def create_hash():
     file.close()
 
 
-create_hash()
 
 
 def load_users():
@@ -174,10 +174,8 @@ def verify_signature(key, sign, message):
             ),
                                    hashes.SHA256()
                                    )
-        print("Signature Verified")
         return "VERIFIED"
     except:
-        print("Signature couldn't be verified")
         return "FAIL"
 
 # signature = sign_message("sushant_private.pem", "hi")

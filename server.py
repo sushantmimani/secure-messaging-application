@@ -1,5 +1,5 @@
 import argparse, socket, json, time, random, binascii, pickle, sys
-from CryptoUtils import hashFunc, load_users, load_public_key, symmetric_encryption, asymmetric_decryption, \
+from CryptoUtils import create_hash, load_users, load_public_key, symmetric_encryption, asymmetric_decryption, \
     load_private_key, generate_key_from_password, keygen, symmetric_decryption, verify_signature
 
 

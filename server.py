@@ -17,19 +17,21 @@ class ChatServer:
         self.users_pubkeys = {}
         self.users_derivedkeys = {}
         self.registered_users = load_users()
+        self.parsed_data = {}
         self.receive_messages()
 
     def receive_messages(self):
         while True:
+            self.parsed_data = {}
             data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
             try:
-                parsed_data = json.loads(data)
+                self.parsed_data = json.loads(data)
             except ValueError:
-                parsed_data = pickle.loads(data)
-            if parsed_data["command"] == "login":
-                if self.registered_users.get(parsed_data["username"]) is None:
+                self.parsed_data = pickle.loads(data)
+            if self.parsed_data["command"] == "login":
+                if self.registered_users.get(self.parsed_data["username"]) is None:
                     self.send_messages("User not registered", address)
-                if self.users.get(parsed_data["username"]):
+                if self.users.get(self.parsed_data["username"]):
                     self.send_messages("Already logged in", address)
                 else:
                     cha = str(time.time()) + " " + str(random.random())
@@ -77,20 +79,20 @@ class ChatServer:
                             self.send_messages(pickle.dumps(payload), address)
                     else:
                         self.send_messages("Authentication failed!", address)
-            elif parsed_data["command"] == "list":
-                signature = parsed_data["signature"]
-                user = parsed_data["user"]
-                validity = verify_signature(user+"_public.pem",signature, parsed_data["ciphertext"])
+            elif self.parsed_data["command"] == "list":
+                signature = self.parsed_data["signature"]
+                user = self.parsed_data["user"]
+                validity = verify_signature(user+"_public.pem",signature, self.parsed_data["ciphertext"])
                 if validity == "VERIFIED":
-                    nonce_l = symmetric_decryption(self.users_derivedkeys.get(username),parsed_data["iv"],
-                                                   parsed_data["tag"],parsed_data["ciphertext"])
+                    nonce_l = symmetric_decryption(self.users_derivedkeys.get(user),self.parsed_data["iv"],
+                                                   self.parsed_data["tag"], self.parsed_data["ciphertext"])
                     nonce_l1 = str(time.time())
                     response = str(self.users)+"\n"+nonce_l+"\n"+nonce_l1
-                    enc_response, iv, tag = symmetric_encryption(self.users_derivedkeys.get(username), response)
+                    enc_response, iv, tag = symmetric_encryption(self.users_derivedkeys.get(user), response)
                     payload = {
                         "ciphertext": enc_response,
-                        "iv": str(iv),
-                        "tag": str(tag)
+                        "iv": iv,
+                        "tag":tag
                     }
                     self.send_messages(pickle.dumps(payload), address)
                     

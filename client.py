@@ -89,7 +89,7 @@ class ChatClient:
             ct, iv, tag = symmetric_encryption(self.derived_key, message)
             signature = sign_message(self.private_key, ct)
             new_message = {
-                "ciphertext": ct,
+                "ciphertext": str(ct),
                 "user": self.username,
                 "command": "list",
                 "iv": iv,
@@ -102,14 +102,14 @@ class ChatClient:
             data = pickle.loads(data)
             users, ni,ni1 = symmetric_decryption(self.derived_key,data["iv"], data["tag"],data["ciphertext"]).split("\n")
             temp = ast.literal_eval(users)
-            user = []
-            if not users: # No other users logged in
-                print("<-- No other users signed in")
+            user_list = []
+            for x in temp:
+                if x != self.username:
+                    user_list.append(x)
+            if len(user_list) == 0:
+                print "<-- No other users online"
             else:
-                for x in temp:
-                    if x is not self.username:
-                        user.append(x)
-                print("<-- Signed In Users: {0}").format(','.join(user)) # Print user list
+                print("<-- Signed In Users: {0}").format(','.join(user_list)) # Print user list
 
     # This function handles the overall working of the client
     def start(self):

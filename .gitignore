@@ -8,3 +8,4 @@
 server_private.pem
 server_public.pem
 passwords.json
+CryptoUtils.pyc

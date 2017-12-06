@@ -24,8 +24,9 @@ class ChatServer:
         while True:
             self.parsed_data = {}
             data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
+            print "received data"
             try:
-                self.parsed_data = json.loads(data)
+                self.parsed_data = pickle.loads(data)
             except ValueError:
                 self.parsed_data = pickle.loads(data)
             if self.parsed_data["command"] == "login":
@@ -96,22 +97,24 @@ class ChatServer:
                     }
                     self.send_messages(pickle.dumps(payload), address)
 
-            elif self.parsed_data["command"] == "talk_to":
+            elif self.parsed_data["command"] == "talk-to":
                 signature = self.parsed_data["signature"]
                 user = self.parsed_data["user"]
                 validity = verify_signature(user + "_public.pem", signature, self.parsed_data["ciphertext"])
                 if validity == "VERIFIED":
                     nonce_1 = str(time.time())
-                    private_key, public_key = generate_session_key_for()
-                    ticket_to = json.dumps({"shared_key": public_key, "user": user, "nonce": nonce_1})
+                    private_key, public_key = self.generate_session_key_for()
+                    ticket_to = pickle.dumps({"user": user, "nonce": nonce_1})
+                    # this step encrypts the message ticket-to-client with the derived key of the client
                     receiver_res, iv, tag = symmetric_encryption(self.users_derivedkeys.get(self.parsed_data["chat_with"]), ticket_to)
-                    message_to_receiver = json.dumps({"shared_key": public_key,
-                                                      "receiver": self.parsed_data["chat_with"],
+                    # not sure about the shared_key part here. It is supposed to be the key, which will be used to communicate between A & B
+                    message_to_receiver = pickle.dumps({"shared_key": "public_key",
+                                                      "receiver": self.users[user][0],
                                                       "ticket_to": receiver_res,
-                                                      "nonce": self.parsed_data["iv"]+1})
+                                                      "nonce": 3})
                     enc_response, iv1, tag1 = symmetric_encryption(self.users_derivedkeys.get(user), message_to_receiver)
-                    payload = {"ciphertext": enc_response}
-                    self.send_messages(json.dumps(payload), address)
+                    payload = {"ciphertext": enc_response, "iv": iv, "tag": tag}
+                    self.send_messages(pickle.dumps(payload), address)
                     # generate session key Kab for the client
 
 

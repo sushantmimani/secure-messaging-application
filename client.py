@@ -1,4 +1,5 @@
 import argparse, socket, json, sys, time, binascii, os, pickle, getpass, ast
+import threading
 
 from select import select
 from CryptoUtils import create_hash, keygen, generate_key_from_password, load_public_key, \
@@ -26,7 +27,7 @@ class ChatClient:
             "command": "login",
             "username": self.username
         }
-        self.sock.sendto(json.dumps(params), (self.sIP, self.UDP_PORT))
+        self.sock.sendto(pickle.dumps(params), (self.sIP, self.UDP_PORT))
         data, address = self.sock.recvfrom(self.BUFFER_SIZE)
         if data == "Already logged in":
             print "Already logged in. Terminating this session"
@@ -149,30 +150,56 @@ class ChatClient:
                                     "command": "talk-to",
                                     "iv": iv,
                                     "tag": tag,
+                                    "nounce": nonce_l,
                                     "signature": signature
                                 }
 
-                                self.sock.sendto(json.dumps(new_message), (self.sIP, self.UDP_PORT))
+                                self.sock.sendto(pickle.dumps(new_message), (self.sIP, self.UDP_PORT))
                                 data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
                                 if data=="null":
                                     print("User doesn't exist!")
                                 else:
-                                    temp = json.loads(data)
-                                    message = ' '.join(input_array[2:])
-                                    if len(message.encode('utf-8')) > self.permitted_size:
-                                        while len(message.encode('utf-8'))>self.permitted_size:
-                                            toSend=message[0:self.permitted_size]
-                                            self.sock.sendto(json.dumps({
-                                                "user": self.username, "message": toSend}),
-                                                (temp[0], int(temp[1])))
-                                            message = message[self.permitted_size:]
-                                        self.sock.sendto(json.dumps({
-                                            "user": self.username, "message": message}),
-                                            (temp[0], int(temp[1])))
-                                    else:
-                                        self.sock.sendto(json.dumps({
-                                            "user":self.username,"message":' '.join(input_array[2:])}),
-                                            (temp[0], int(temp[1])))
+                                    temp = pickle.loads(data)
+                                    server_response_totalk = temp["ciphertext"]
+                                    iv = temp["iv"]
+                                    tag = temp["tag"]
+                                    # decrypt response from server to get keys and ticket_to data for communicating to receiver
+                                    decrypted_response = symmetric_decryption(self.derived_key, iv, tag, server_response_totalk)
+                                    decrypted_response_dict = pickle.loads(decrypted_response)
+                                    # get the ticket_to_Receiver
+                                    server_generated_shared_key = decrypted_response_dict["public_key"]
+                                    receiver_address = decrypted_response_dict["receiver"]
+                                    nounce_response_from_server = decrypted_response_dict["nounce"]
+                                    if nonce_response_from_server != nonce_l+1:
+                                        print "invalid response from server, nonce did not match"
+                                        continue
+                                    ticket_to_receiver = decrypted_response_dict["ticket_to"]
+                                    # send the ticket_to_receiver to the receiver client, the receiver client can decrypt the message using its
+                                    # key(password) and respond back with nounce encrptd by the shared key
+                                    payload = {
+                                        "ticket_to_receiver": ticket_to_receiver,
+                                        "message": "chat_request"
+                                    }
+
+                                    self.sock.sendto(pickle.dumps(payload), receiver_address)
+
+
+                                    # self.sock.sendto(pickle.dumps(new_message), (self.sIP, self.UDP_PORT))
+                                    # message = ' '.join(input_array[2:])
+                                    # if len(message.encode('utf-8')) > self.permitted_size:
+                                    #     while len(message.encode('utf-8'))>self.permitted_size:
+                                    #         toSend=message[0:self.permitted_size]
+                                    #         self.sock.sendto(json.dumps({
+                                    #             "user": self.username, "message": toSend}),
+                                    #             (temp[0], int(temp[1])))
+                                    #         message = message[self.permitted_size:]
+                                    #     self.sock.sendto(json.dumps({
+                                    #         "user": self.username, "message": message}),
+                                    #         (temp[0], int(temp[1])))
+                                    # else:
+                                    #     self.sock.sendto(json.dumps({
+                                    #         "user":self.username,"message":' '.join(input_array[2:])}),
+                                    #         (temp[0], int(temp[1])))
                         else:
                             print("Invalid Input!")
         except KeyboardInterrupt:

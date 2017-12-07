@@ -102,29 +102,41 @@ class ChatServer:
                 signature = self.parsed_data["signature"]
                 message_iv = self.parsed_data["iv"]
                 message_tag = self.parsed_data["tag"]
-                user = self.parsed_data["user"]
-                validity = verify_signature(user + "_public.pem", signature, self.parsed_data["ciphertext"])
-                if validity == "VERIFIED":
-                    nonce_1 = str(time.time())
-                    private_key, public_key = self.generate_session_key_for()
-                    # shared_key part is missing here, need to figure out what should be the public key
-                    client_name = self.parsed_data["chat_with"]
-
-                    # this step encrypts the message ticket-to-client with the derived key of the client
-                    salt = os.urandom(16)
-                    shared_key_for_client = generate_key_from_password("password", salt)
-                    ticket_to = pickle.dumps({"shared_key": shared_key_for_client, "sender_name": user, "sender_addr": (self.users[user][0], self.users[user][1]), "nonce": nonce_1})
-                    receiver_res, iv, tag = symmetric_encryption(self.users_derivedkeys.get(client_name), ticket_to)
-                    # not sure about the shared_key part here. It is supposed to be the key, which will be used to communicate between A & B
-
-                    message_to_receiver = pickle.dumps({"shared_key": shared_key_for_client,
-                                                      "receiver": (self.users[client_name][0], self.users[client_name][1]),
-                                                      "ticket_to": receiver_res,
-                                                      "nonce": 3})
-                    enc_response, iv1, tag1 = symmetric_encryption(self.users_derivedkeys.get(user), message_to_receiver)
-                    payload = {"ciphertext": enc_response, "iv1": iv1, "tag1": tag1, "iv": iv, "tag": tag}
+                client_user = self.parsed_data["chat_with"]
+                if client_user not in self.users.keys():
+                    payload = {
+                        "is_valid_user": False
+                    }
                     self.send_messages(pickle.dumps(payload), address)
-                    # generate session key Kab for the client
+                else:
+                    user = self.parsed_data["user"]
+                    validity = verify_signature(user + "_public.pem", signature, self.parsed_data["ciphertext"])
+                    if validity == "VERIFIED":
+                        nonce_1 = str(time.time())
+                        private_key, public_key = self.generate_session_key_for()
+                        # shared_key part is missing here, need to figure out what should be the public key
+                        client_name = self.parsed_data["chat_with"]
+
+                        # this step encrypts the message ticket-to-client with the derived key of the client
+                        salt = os.urandom(16)
+                        shared_key_for_client = generate_key_from_password("password", salt)
+                        ticket_to = pickle.dumps({"shared_key": shared_key_for_client, "sender_name": user, "sender_addr": (self.users[user][0], self.users[user][1]), "nonce": nonce_1})
+                        receiver_res, iv, tag = symmetric_encryption(self.users_derivedkeys.get(client_name), ticket_to)
+                        # not sure about the shared_key part here. It is supposed to be the key, which will be used to communicate between A & B
+
+                        message_to_receiver = pickle.dumps({"shared_key": shared_key_for_client,
+                                                            "receiver": (self.users[client_name][0], self.users[client_name][1]),
+                                                            "ticket_to": receiver_res,
+                                                            "nonce": 3})
+                        enc_response, iv1, tag1 = symmetric_encryption(self.users_derivedkeys.get(user), message_to_receiver)
+                        payload = {"ciphertext": enc_response,
+                                   "iv1": iv1,
+                                   "tag1": tag1,
+                                   "iv": iv,
+                                   "tag": tag,
+                                   "is_valid_user": True}
+                        self.send_messages(pickle.dumps(payload), address)
+                        # generate session key Kab for the client
 
 
     def send_messages(self, message, ip):

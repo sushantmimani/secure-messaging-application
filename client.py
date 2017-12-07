@@ -185,10 +185,13 @@ class ChatClient:
                                     self.sock.sendto(pickle.dumps(new_message), (self.sIP, self.UDP_PORT))
                                     # receive message from server with ticket-to-client etc
                                     data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
-                                    if data=="null":
+                                    if data == "null":
                                         print("User doesn't exist!")
                                     else:
                                         temp = pickle.loads(data)
+                                        if temp["is_valid_user"] == False:
+                                            print "user not available to chat. Please try later. Use List command to find list of available users"
+                                            continue
                                         server_response_totalk = temp["ciphertext"]
                                         iv1 = temp["iv1"]
                                         tag1 = temp["tag1"]

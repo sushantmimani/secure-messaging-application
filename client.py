@@ -22,12 +22,13 @@ class ChatClient:
         self.salt = os.urandom(16)
         self.derived_key = generate_key_from_password(self.password_hash, self.salt)
         # Initialize a socket for the client
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_shared_keys = {}
         self.client_addresses = {}
         self.sender_addresses = {}
         self.message_for_client = ""
         self.dh_session_keys = {}
+        self.sock.connect((self.sIP, self.UDP_PORT))
 
     def start_client_prompt(self):
         # Parameters to allow server to register a user on sign-in
@@ -35,8 +36,9 @@ class ChatClient:
             "command": "login",
             "username": self.username
         }
-        self.sock.sendto(pickle.dumps(params), (self.sIP, self.UDP_PORT))
-        data, address = self.sock.recvfrom(self.BUFFER_SIZE)
+
+        self.sock.send(pickle.dumps(params))
+        data = self.sock.recv(self.BUFFER_SIZE)
         if data == "Already logged in":
             print "Already logged in. Terminating this session"
             sys.exit()
@@ -51,8 +53,8 @@ class ChatClient:
         self.server_pub_key = load_public_key("server_public.pem")
         message = answer + "\n"+self.username+"\n"+self.password_hash+"\n"+self.salt+"\n"+nonce_1
         encrypted_message = asymmetric_encryption(self.server_pub_key, message)
-        self.sock.sendto(encrypted_message, (self.sIP, self.UDP_PORT))
-        data, address = self.sock.recvfrom(self.BUFFER_SIZE)
+        self.sock.send(encrypted_message)
+        data = self.sock.recv(self.BUFFER_SIZE)
         if data == "Authentication failed!":
             print "Authentication failed!Terminating session"
             sys.exit()
@@ -67,14 +69,13 @@ class ChatClient:
                 "iv": str(iv),
                 "tag": str(tag)
                 }
-            self.sock.sendto(pickle.dumps(payload), (self.sIP, self.UDP_PORT))
-            data, address = self.sock.recvfrom(self.BUFFER_SIZE)
-            data = pickle.loads(data)
+            self.sock.send(pickle.dumps(payload))
+            data_1 = self.sock.recv(self.BUFFER_SIZE)
+            data = pickle.loads(data_1)
             n3, n4 = symmetric_decryption(self.derived_key, data["iv"], data["tag"], data["message"]).split("\n")
             if n3 == nonce_3:
                 print "Server authenticated and registered with server"
                 print("Client Starting...")
-                print("start receiving messages from client")
                 # threading.Thread(target=self.start_listening()).start()
                 self.start()
             else:
@@ -110,9 +111,9 @@ class ChatClient:
             }
 
             # self.sock.sendto(json.dumps({"command": "list"}), (self.sIP, self.UDP_PORT))
-            self.sock.sendto(pickle.dumps(new_message), (self.sIP, self.UDP_PORT))
-            data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
-            data = pickle.loads(data)
+            self.sock.send(pickle.dumps(new_message))
+            data_1 = self.sock.recv(self.BUFFER_SIZE)
+            data = pickle.loads(data_1)
             users, ni,ni1 = symmetric_decryption(self.derived_key,data["iv"], data["tag"],data["ciphertext"]).split("\n")
             temp = ast.literal_eval(users)
             user_list = []

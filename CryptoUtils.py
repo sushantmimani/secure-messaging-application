@@ -5,6 +5,8 @@ from cryptography.hazmat.primitives import serialization, hashes, ciphers
 from cryptography.hazmat.primitives.ciphers import algorithms, modes, Cipher
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
+salt_constant = os.urandom(16)
+
 def get_diffie_hellman_params():
     return {"a": 5, "b":6, "p":7, "g": 11}
 
@@ -62,6 +64,16 @@ def symmetric_decryption(sym_key, iv, tag, message):
 
 def generate_key_from_password(password, salt):
     kdf = Scrypt(salt=salt,
+                 length=32,
+                 n=2 ** 14,
+                 r=8,
+                 p=1,
+                 backend=default_backend())
+    key = kdf.derive(password)
+    return key
+
+def generate_key_from_password_no_salt(password):
+    kdf = Scrypt(salt=salt_constant,
                  length=32,
                  n=2 ** 14,
                  r=8,

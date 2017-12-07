@@ -5,7 +5,7 @@ import math
 from select import select
 from CryptoUtils import create_hash, keygen, generate_key_from_password, load_public_key, \
                         symmetric_encryption, asymmetric_encryption, generate_password_hash, symmetric_decryption,\
-                        serialize_public_key, sign_message, serialize_private_key, get_diffie_hellman_params
+                        serialize_public_key, sign_message, serialize_private_key, get_diffie_hellman_params, generate_key_from_password_no_salt
 
 
 class ChatClient:
@@ -125,6 +125,14 @@ class ChatClient:
                 print("<-- Signed In Users: {0}").format(','.join(user_list)) # Print user list
 
 
+    def is_user_address_available(self, user):
+        final = self.sender_addresses.update(self.client_addresses)
+        if final:
+            for u in final:
+                if u[0] == user:
+                    return u
+        return False
+
 
     # This function handles the overall working of the client
     def start(self):
@@ -149,7 +157,8 @@ class ChatClient:
                             else:
                                 chat_with_user = input_array[1]
                                 self.message_for_client = input_array[2]
-                                if chat_with_user in self.dh_session_keys.keys():
+                                user_address = self.is_user_address_available(chat_with_user)
+                                if (chat_with_user in self.dh_session_keys.keys()) and user_address:
                                     print("sending message to client")
                                     self.send_message_to_client(self.message_for_client, self.dh_session_keys[chat_with_user], chat_with_user)
                                 #     do something
@@ -174,6 +183,7 @@ class ChatClient:
                                     }
 
                                     self.sock.sendto(pickle.dumps(new_message), (self.sIP, self.UDP_PORT))
+                                    # receive message from server with ticket-to-client etc
                                     data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
                                     if data=="null":
                                         print("User doesn't exist!")
@@ -233,102 +243,107 @@ class ChatClient:
             self.sock.close()
 
     def start_listening(self):
-        while 1:
-            print "started receiving ...."
-            data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
-            data_dict = pickle.loads(data)
-            if "message" in data_dict.keys():
-                message = data_dict["message"]
-                if message == "chat_request":
-                    ticket_to_receiver = data_dict["ticket_to_receiver"]
-                    iv = data_dict["iv"]
-                    tag = data_dict["tag"]
-                    # this would get the decrypted ticket-to-receiver part, which contains the key, sender's identity, and
-                    # nonce
-                    # ATM I do not know where to get the iv and tag from
-                    decrypted_message = symmetric_decryption(self.derived_key, iv, tag, ticket_to_receiver)
-                    decrypted_message_dict = pickle.loads(decrypted_message)
-                    shared_key = decrypted_message_dict["shared_key"]
-                    sender_name = decrypted_message_dict["sender_name"]
-                    sender_address = decrypted_message_dict["sender_addr"][0]
-                    sender_address_port = decrypted_message_dict["sender_addr"][1]
-                    self.sender_addresses[sender_name] = (sender_address, sender_address_port)
-                    self.client_shared_keys[sender_name] = shared_key
-                    nonce = decrypted_message_dict["nonce"]
+        print "started receiving ...."
+        data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
+        data_dict = pickle.loads(data)
+        if "message" in data_dict.keys():
+            message = data_dict["message"]
+            # this message is received by client(client B) for a chat request initiated bycleint B for A->B comm
+            if message == "chat_request":
+                ticket_to_receiver = data_dict["ticket_to_receiver"]
+                iv = data_dict["iv"]
+                tag = data_dict["tag"]
+                # this would get the decrypted ticket-to-receiver part, which contains the key, sender's identity, and
+                # nonce
+                # ATM I do not know where to get the iv and tag from
+                decrypted_message = symmetric_decryption(self.derived_key, iv, tag, ticket_to_receiver)
+                decrypted_message_dict = pickle.loads(decrypted_message)
+                shared_key = decrypted_message_dict["shared_key"]
+                sender_name = decrypted_message_dict["sender_name"]
+                sender_address = decrypted_message_dict["sender_addr"][0]
+                sender_address_port = decrypted_message_dict["sender_addr"][1]
+                self.sender_addresses[sender_name] = (sender_address, sender_address_port)
+                self.client_shared_keys[sender_name] = shared_key
+                nonce = decrypted_message_dict["nonce"]
 
-                    nonceN2 = str(time.time())
-                    nonceN3 = str(time.time())
+                nonceN2 = str(time.time())
+                nonceN3 = str(time.time())
 
-                    reply_message = {
-                            "N2": nonceN2,
-                            "N3": nonceN3
-                    }
-                    # encrypted_response, iv, tag = symmetric_encryption(shared_key, pickle.loads(reply_message))
-                    encrypted_response = "response"
+                reply_message = {
+                        "N2": nonceN2,
+                        "N3": nonceN3
+                }
+                # encrypted_response, iv, tag = symmetric_encryption(shared_key, pickle.loads(reply_message))
+                encrypted_response = "response"
 
-                    payload = {
-                        "encrypted_response": encrypted_response,
-                        "message": "start_dh",
-                        "client": self.username
-                    }
+                payload = {
+                    "encrypted_response": encrypted_response,
+                    "message": "start_dh",
+                    "client": self.username
+                }
 
-                    self.sock.sendto(pickle.dumps(payload), (sender_address, sender_address_port))
-                    # starting diffie helmann key exchange here now
-                if message == "start_dh":
-                    self.perform_diffie_hellman(data_dict["client"], self.username, data_dict["encrypted_response"])
-                if message == "diffie-step1":
-                    params = get_diffie_hellman_params()
-                    part = data_dict["part"]
-                    sender_name = data_dict["sender-name"]
-                    # plaintext is g^a mod p
-                    plaintext = symmetric_decryption(self.client_shared_keys[sender_name], iv, tag, part)
-                    session_key = (plaintext * params["b"]) % params["p"]
-                    self.dh_session_keys[sender_name] = session_key
-                    g = params["g"]
-                    b = params["b"]
-                    gPowBModP = math.pow(g, b) % params["p"]
-                    powPart = gPowBModP
-                    shard_key = self.client_shared_keys[sender_name]
-                    part, iv, tag = symmetric_encryption(shard_key, str(powPart))
-                    payload = {
-                        "sender-name": self.username,
-                        "message": "diffie-step2",
-                        "part": part,
-                        "iv": iv,
-                        "tag": tag
-                    }
+                self.sock.sendto(pickle.dumps(payload), (sender_address, sender_address_port))
+                # starting diffie helmann key exchange here now
+            if message == "start_dh":
+                self.perform_diffie_hellman(data_dict["client"], self.username, data_dict["encrypted_response"])
+            #     step1 is A->B with message (g^a mod p), B receives this message
+            if message == "diffie-step1":
+                params = get_diffie_hellman_params()
+                part = data_dict["part"]
+                sender_name = data_dict["sender-name"]
+                diffie_msg_step1_iv = data_dict["iv"]
+                diffie_msg_step1_tag = data_dict["tag"]
+                # plaintext is g^a mod p
+                plaintext = symmetric_decryption(self.client_shared_keys[sender_name], diffie_msg_step1_iv, diffie_msg_step1_tag, part)
+                session_key = generate_key_from_password_no_salt(str((float(plaintext) * params["b"]) % params["p"]))
+                self.dh_session_keys[sender_name] = session_key
+                g = params["g"]
+                b = params["b"]
+                gPowBModP = math.pow(g, b) % params["p"]
+                powPart = gPowBModP
+                shard_key = self.client_shared_keys[sender_name]
+                part, iv, tag = symmetric_encryption(shard_key, str(powPart))
+                payload = {
+                    "sender-name": self.username,
+                    "message": "diffie-step2",
+                    "part": part,
+                    "iv": iv,
+                    "tag": tag
+                }
 
-                    self.sock.sendto(pickle.dumps(payload), self.client_addresses[client])
+                self.sock.sendto(pickle.dumps(payload), self.sender_addresses[sender_name])
 
-                if message == "diffie-step2":
-                    sender_name = data_dict["sender-name"]
-                    # plaintext is g^b mod p
-                    diffie_msg_iv = data_dict["iv"]
-                    diffie_msg_tag = data_dict["tag"]
-                    part = data_dict["part"]
-                    plaintext = symmetric_decryption(self.client_shared_keys[sender_name], diffie_msg_iv, diffie_msg_tag, part)
-                    session_key = (plaintext * params["b"]) % params["p"]
-                    self.dh_session_keys[sender_name] = session_key
-                    self.send_message_to_client(self.message_for_client, self.dh_session_keys[sender_name], sender_name)
-                if message == "chat_message":
-                    data = data_dict["data"]
-                    message_iv = data_dict["iv"]
-                    message_tag = data_dict["tag"]
-                    sender_name = data_dict["sender_name"]
-                    received_message = symmetric_decryption(self.dh_session_keys[sender_name], message_iv, message_tag, data)
-                    print("received message from: " + sender_name+ "message is :" + received_message)
+            if message == "diffie-step2":
+                params = get_diffie_hellman_params()
+                sender_name = data_dict["sender-name"]
+                # plaintext is g^b mod p
+                diffie_msg_iv = data_dict["iv"]
+                diffie_msg_tag = data_dict["tag"]
+                part = data_dict["part"]
+                plaintext = symmetric_decryption(self.client_shared_keys[sender_name], diffie_msg_iv, diffie_msg_tag, part)
+                session_key = generate_key_from_password_no_salt(str((float(plaintext) * params["b"]) % params["p"]))
+                self.dh_session_keys[sender_name] = session_key
+                self.send_message_to_client(self.message_for_client, self.dh_session_keys[sender_name], self.client_addresses[sender_name])
+            if message == "chat_message":
+                data = data_dict["data"]
+                message_iv = data_dict["iv"]
+                message_tag = data_dict["tag"]
+                sender_name = data_dict["sender_name"]
+                # received_message = symmetric_decryption(self.dh_session_keys[sender_name], message_iv, message_tag, data)
+                print("received message from: " + sender_name + "message is :" + data)
+                # print("received message from: " + sender_name + "message is :" + received_message)
 
-    def send_message_to_client(self, message, session_key, client_name):
-        ciphertext, iv, tag = symmetric_encryption(session_key, message)
+    def send_message_to_client(self, message, session_key, address):
+        # ciphertext, iv, tag = symmetric_encryption(session_key, message)
         payload = {
             "message": "chat_message",
-            "iv": iv,
-            "tag": tag,
-            "data": ciphertext,
+            "iv": "iv",
+            "tag": "tag",
+            "data": self.message_for_client,
             "sender_name": self.username
         }
 
-        self.sock.sendto(pickle.dumps(payload), self.client_addresses[client_name])
+        self.sock.sendto(pickle.dumps(payload), address)
 
     def perform_diffie_hellman(self, client, sender, nonce_message):
         shared_key = self.client_shared_keys[client]

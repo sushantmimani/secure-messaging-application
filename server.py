@@ -101,6 +101,31 @@ class ChatServer:
                         "tag": tag
                     }
                     client_socket.send(pickle.dumps(payload))
+            elif parsed_data["command"] == "exit":
+                signature = parsed_data["signature"]
+                user = parsed_data["user"]
+                validity = verify_signature(user + "_public.pem", signature, parsed_data["ciphertext"])
+                if validity:
+                    terminate_request_nonce = symmetric_decryption(self.users_derivedkeys.get(user),
+                                                                   parsed_data["iv"],
+                                                                   parsed_data["tag"],
+                                                                   parsed_data["ciphertext"])
+                    response_terminate_nonce = float(terminate_request_nonce) + 1
+                    encrypted_response_nonce, res_iv, res_tag = symmetric_encryption(self.users_derivedkeys.get(user),
+                                                                             str(response_terminate_nonce))
+                    payload = {
+                        "message": "deleted_from_server",
+                        "data": encrypted_response_nonce,
+                        "iv": res_iv,
+                        "tag": res_tag
+                    }
+
+                    client_socket.send(pickle.dumps(payload))
+                    # deleting the derived key for the user
+                    del self.users_derivedkeys[user]
+                    print "Deleted the derived key for user : " + user
+
+
             elif parsed_data["command"] == "talk-to":
                 signature = parsed_data["signature"]
                 message_iv = parsed_data["iv"]

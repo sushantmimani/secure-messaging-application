@@ -11,6 +11,7 @@ from CryptoUtils import create_hash, keygen, generate_key_from_password, load_pu
 class ChatClient:
 
     def __init__(self, args):
+        self.exit_from_server_nonce = ""
         self.terminate_nonce = ""
         self.clients_terminated = 0
         self.terminate = "terminate"
@@ -272,6 +273,23 @@ class ChatClient:
             self.sock.sendto(json.dumps({"command": "terminate", "username": self.username}), (self.sIP, self.UDP_PORT))
             self.sock.close()
 
+    def perform_server_session_termination(self):
+        user_name = self.username
+        term_nonce = str(time.time())
+        self.exit_from_server_nonce = term_nonce
+        terminate_encrypted_data, term_iv, term_tag = symmetric_encryption(self.derived_key, term_nonce)
+        signature = sign_message(self.private_key, terminate_encrypted_data)
+        payload = {
+            "command": "exit",
+            "ciphertext": terminate_encrypted_data,
+            "user": self.username,
+            "signature": signature,
+            "iv": term_iv,
+            "tag": term_tag
+        }
+
+        self.sock.sendto(pickle.dumps(payload), (self.sIP, self.UDP_PORT))
+
     def perform_client_session_termination(self, client):
         self.terminate_nonce = str(time.time())
         encrypted_msg, dis_iv, dis_tag = symmetric_encryption(self.client_shared_keys[client], self.terminate_nonce)
@@ -290,6 +308,16 @@ class ChatClient:
         data_dict = pickle.loads(data)
         if "message" in data_dict.keys():
             message = data_dict["message"]
+            if message == "deleted_from_server":
+                server_del_iv = data_dict["iv"]
+                server_del_tag = data_dict["tag"]
+                server_delete_message = data_dict["data"]
+                deleted_server_decrypted_message = symmetric_decryption(self.derived_key, server_del_iv,
+                                                                        server_del_tag, server_delete_message)
+                if float(self.exit_from_server_nonce) + 1 == float(deleted_server_decrypted_message):
+                    self.derived_key = ""
+                    print "Deleted derived key fro server from client: " + self.username
+
             if message == "client_deleted":
                 del_iv = data_dict["iv"]
                 del_tag = data_dict["tag"]
@@ -298,6 +326,8 @@ class ChatClient:
                 if self.terminate_nonce == float(delete_confirm_nonce) + 1:
                     print "terminated"
                     del self.client_shared_keys[deleted_user]
+                    print "Exiting now..."
+                    return
 
             if message == "disconnect":
                 sender_user = data_dict["user"]

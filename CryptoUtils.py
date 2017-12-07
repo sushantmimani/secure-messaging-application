@@ -5,6 +5,9 @@ from cryptography.hazmat.primitives import serialization, hashes, ciphers
 from cryptography.hazmat.primitives.ciphers import algorithms, modes, Cipher
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
+def get_diffie_hellman_params():
+    return {"a": 5, "b":6, "p":7, "g": 11}
+
 
 def serialize_public_key(key):
     public_pem = key.public_bytes(encoding=serialization.Encoding.PEM,

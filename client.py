@@ -76,7 +76,6 @@ class ChatClient:
             if n3 == nonce_3:
                 print "Server authenticated and registered with server"
                 print("Client Starting...")
-                print("start receiving messages from client")
                 # threading.Thread(target=self.start_listening()).start()
                 self.start()
             else:
@@ -112,9 +111,9 @@ class ChatClient:
             }
 
             # self.sock.sendto(json.dumps({"command": "list"}), (self.sIP, self.UDP_PORT))
-            self.sock.sendto(pickle.dumps(new_message), (self.sIP, self.UDP_PORT))
-            data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
-            data = pickle.loads(data)
+            self.sock.send(pickle.dumps(new_message))
+            data_1 = self.sock.recv(self.BUFFER_SIZE)
+            data = pickle.loads(data_1)
             users, ni,ni1 = symmetric_decryption(self.derived_key,data["iv"], data["tag"],data["ciphertext"]).split("\n")
             temp = ast.literal_eval(users)
             user_list = []

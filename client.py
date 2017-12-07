@@ -9,7 +9,12 @@ from CryptoUtils import create_hash, keygen, generate_key_from_password, load_pu
 
 
 class ChatClient:
+
     def __init__(self, args):
+        self.terminate_nonce = ""
+        self.clients_terminated = 0
+        self.terminate = "terminate"
+        self.exit = "exit"
         self.BUFFER_SIZE = 65507
         self.permitted_size = self.BUFFER_SIZE-32
         self.username = raw_input("Please enter username: ")
@@ -128,11 +133,17 @@ class ChatClient:
 
     def is_user_address_available(self, user):
         final = self.sender_addresses.update(self.client_addresses)
-        if final:
-            for u in final:
-                if u[0] == user:
-                    return u
-        return False
+        if self.sender_addresses:
+            for u in self.sender_addresses.keys():
+                if u == user:
+                    return self.sender_addresses[u]
+
+        elif final:
+            for u in final.keys():
+                if u == user:
+                    return final[u]
+        else:
+            return False
 
 
     # This function handles the overall working of the client
@@ -140,6 +151,7 @@ class ChatClient:
         try:
             inp = [sys.stdin, self.sock]
             while 1:
+                # valid commands: list, send, terminate
                 print('--> Enter command:')
                 input_list, output_list, exception_list = select(inp, [], [])
                 for s in input_list:
@@ -151,7 +163,20 @@ class ChatClient:
                         # Perform different actions based on the command
                         if input_array[0] == "list":
                             self.print_user_list(input_array)
-                        #     user is trying to send message to the receiver
+                        if input_array[0] == self.exit:
+                            if len(input_array) != 1:
+                                print "Incorrect usage. Correct usage 'exit' to exit from server"
+                            # if len(self.client_shared_keys) != self.clients_terminated:
+                            #     print "Please teminate all clients connections before "
+                            self.perform_server_session_termination()
+                        if input_array[0] == self.terminate:
+                            if len(input_array) != 2:
+                                print "incorrect usage. Correct usage terminate <client_name>"
+                            if (input_array[1] not in self.client_shared_keys.keys()) or (not self.is_user_address_available(input_array[1])):
+                                print "connection to " + input_array[1] + " not established yet."
+                            else:
+                                self.perform_client_session_termination(input_array[1])
+                        # user is trying to send message to the receiver
                         elif input_array[0] == "send":
                             if len(input_array) < 3:
                                 print("Invalid Input!")
@@ -168,7 +193,7 @@ class ChatClient:
                                     message = nonce_l
                                     ct, iv, tag = symmetric_encryption(self.derived_key, message)
                                     signature = sign_message(self.private_key, ct)
-
+                                    self.clients_terminated = 0
                                     if(chat_with_user == self.username):
                                         print('Sender and receiver are the same.')
                                         continue
@@ -247,12 +272,50 @@ class ChatClient:
             self.sock.sendto(json.dumps({"command": "terminate", "username": self.username}), (self.sIP, self.UDP_PORT))
             self.sock.close()
 
+    def perform_client_session_termination(self, client):
+        self.terminate_nonce = str(time.time())
+        encrypted_msg, dis_iv, dis_tag = symmetric_encryption(self.client_shared_keys[client], self.terminate_nonce)
+        payload_to_send = {
+            "message": "disconnect",
+            "data": encrypted_msg,
+            "user": self.username,
+            "iv": dis_iv,
+            "tag": dis_tag
+        }
+        self.sock.sendto(pickle.dumps(payload_to_send), self.is_user_address_available(client))
+
     def start_listening(self):
         print "started receiving ...."
         data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
         data_dict = pickle.loads(data)
         if "message" in data_dict.keys():
             message = data_dict["message"]
+            if message == "client_deleted":
+                del_iv = data_dict["iv"]
+                del_tag = data_dict["tag"]
+                deleted_user = data_dict["user"]
+                delete_confirm_nonce = symmetric_decryption(self.client_shared_keys[deleted_user], del_iv, del_tag, data_dict["data"])
+                if self.terminate_nonce == float(delete_confirm_nonce) + 1:
+                    print "terminated"
+                    del self.client_shared_keys[deleted_user]
+
+            if message == "disconnect":
+                sender_user = data_dict["user"]
+                if sender_user in self.client_shared_keys.keys():
+                    decrypted_msg_nonce = symmetric_decryption(self.client_shared_keys[sender_user],
+                                                               data_dict["iv"], data_dict["tag"], data_dict["data"])
+                    response_nonce = float(decrypted_msg_nonce)+1
+                    encrypted_res, res_iv, res_tag = symmetric_encryption(self.client_shared_keys[sender_user], str(response_nonce))
+                    terminate_valid_payload = {
+                        "message": "client_deleted",
+                        "data": encrypted_res,
+                        "iv": res_iv,
+                        "tag": res_tag,
+                        "user": self.username
+                    }
+                    self.sock.sendto(pickle.dumps(terminate_valid_payload), self.is_user_address_available(sender_user))
+                    del self.client_shared_keys[data_dict["user"]]
+
             # this message is received by client(client B) for a chat request initiated bycleint B for A->B comm
             if message == "chat_request":
                 ticket_to_receiver = data_dict["ticket_to_receiver"]

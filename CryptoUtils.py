@@ -107,8 +107,6 @@ def create_password_hash():
     file.close()
 
 
-
-
 def load_users():
     file = open("passwords.json", "r")
     data = json.loads(file.read())

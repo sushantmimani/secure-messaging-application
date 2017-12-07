@@ -212,7 +212,8 @@ class ChatClient:
                                         #     print "invalid response from server, nonce did not match"
                                         #     continue
                                         ticket_to_receiver = decrypted_response_dict["ticket_to"]
-                                        # send the ticket_to_receiver to the receiver client, the receiver client can decrypt the message using its
+                                        # send the ticket_to_receiver to the receiver client, the receiver client can
+                                        # decrypt the message using its
                                         # key(password) and respond back with nounce encrptd by the shared key
                                         payload = {
                                             "ticket_to_receiver": ticket_to_receiver,
@@ -268,7 +269,7 @@ class ChatClient:
                 self.sender_addresses[sender_name] = (sender_address, sender_address_port)
                 self.client_shared_keys[sender_name] = shared_key
                 nonce = decrypted_message_dict["nonce"]
-
+                # receiver here starts to reply for sender's(A) request to start communication.
                 nonceN2 = str(time.time())
                 nonceN3 = str(time.time())
 
@@ -276,8 +277,8 @@ class ChatClient:
                         "N2": nonceN2,
                         "N3": nonceN3
                 }
-                # encrypted_response, iv, tag = symmetric_encryption(shared_key, pickle.loads(reply_message))
-                encrypted_response = "response"
+                encrypted_response, iv, tag = symmetric_encryption(shared_key, pickle.dumps(reply_message))
+                # encrypted_response = "response"
 
                 payload = {
                     "encrypted_response": encrypted_response,
@@ -291,17 +292,24 @@ class ChatClient:
                 self.perform_diffie_hellman(data_dict["client"], self.username, data_dict["encrypted_response"])
             #     step1 is A->B with message (g^a mod p), B receives this message
             if message == "diffie-step1":
+                # This will be received by the receiver always. In case for A->B, B will receive this message
                 params = get_diffie_hellman_params()
+                g = params["g"]
+                # The client(B) will only know 'b' of diffie hellman only
+                b = params["b"]
+                p = params["p"]
                 part = data_dict["part"]
                 sender_name = data_dict["sender-name"]
                 diffie_msg_step1_iv = data_dict["iv"]
                 diffie_msg_step1_tag = data_dict["tag"]
-                # plaintext is g^a mod p
+                # plaintext is g^a mod p, plaintest=x in DH algorithm
                 plaintext = symmetric_decryption(self.client_shared_keys[sender_name], diffie_msg_step1_iv, diffie_msg_step1_tag, part)
-                session_key = generate_key_from_password_no_salt(str((float(plaintext) * params["b"]) % params["p"]))
+                # computing the power(x, b) mod b part
+                session_key_val = math.pow(float(plaintext), b) % p
+                session_key = generate_key_from_password_no_salt(str((session_key_val * params["b"]) % params["p"]))
                 self.dh_session_keys[sender_name] = session_key
-                g = params["g"]
-                b = params["b"]
+
+                # this is the creation of x = (g^b mod p) part from side B
                 gPowBModP = math.pow(g, b) % params["p"]
                 powPart = gPowBModP
                 shard_key = self.client_shared_keys[sender_name]
@@ -317,14 +325,21 @@ class ChatClient:
                 self.sock.sendto(pickle.dumps(payload), self.sender_addresses[sender_name])
 
             if message == "diffie-step2":
+                # This will be received by the sender always. In case for A->B, A will receive this message
                 params = get_diffie_hellman_params()
+                b = params["b"]
+                p = params["p"]
                 sender_name = data_dict["sender-name"]
                 # plaintext is g^b mod p
                 diffie_msg_iv = data_dict["iv"]
                 diffie_msg_tag = data_dict["tag"]
                 part = data_dict["part"]
+                # the plaintext is (g^b mod p) part. This is y in diffie hellman algorithm
                 plaintext = symmetric_decryption(self.client_shared_keys[sender_name], diffie_msg_iv, diffie_msg_tag, part)
-                session_key = generate_key_from_password_no_salt(str((float(plaintext) * params["b"]) % params["p"]))
+                # computing the power(y, a) mod p part here.
+                session_key_val_sender = math.pow(float(plaintext), b) % p
+
+                session_key = generate_key_from_password_no_salt(str(session_key_val_sender))
                 self.dh_session_keys[sender_name] = session_key
                 self.send_message_to_client(self.message_for_client, self.dh_session_keys[sender_name], self.client_addresses[sender_name])
             if message == "chat_message":

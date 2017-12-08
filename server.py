@@ -1,4 +1,4 @@
-import socket, time, random, binascii, pickle, os, ConfigParser, sys
+import socket, time, random, binascii, pickle, os, ConfigParser
 from threading import Thread
 from CryptoUtils import create_hash, load_users, load_public_key, symmetric_encryption, asymmetric_decryption, \
     load_private_key, generate_key_from_password, keygen, symmetric_decryption, verify_signature

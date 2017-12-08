@@ -1,5 +1,5 @@
 ------------
-## Introduction    
+Introduction    
 ------------
 
 Secure instance messaging system by Sushant Mimani and Rohit Kumar
@@ -23,6 +23,7 @@ Client supports the following commands
 *   list - lists active clients
 *   send USERNAME MASSAGE - send a message to specified client
 *   exit - exit client
+*   disconnect CLIENT - disconnect from a particular client 
 
 
 ----------------

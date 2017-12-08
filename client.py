@@ -3,6 +3,9 @@ import threading
 import math
 
 from select import select
+
+import signal
+
 from CryptoUtils import create_hash, keygen, generate_key_from_password, load_public_key, \
                         symmetric_encryption, asymmetric_encryption, generate_password_hash, symmetric_decryption,\
                         serialize_public_key, sign_message, serialize_private_key, get_diffie_hellman_params, generate_key_from_password_no_salt
@@ -44,15 +47,12 @@ class ChatClient:
             os._exit(0)
         self.send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.recv_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._start_recv_sock()
+        self.start_recv_sock()
 
-    def _start_send_thread(self):
-        try:
-            threading.Thread(target=self.start).start()
-        except KeyboardInterrupt:
-            print "cntrl+c"
+    def start_send_thread(self):
+        threading.Thread(target=self.start).start()
 
-    def _start_recv_sock(self):
+    def start_recv_sock(self):
         try:
             self.recv_socket.bind((self.sIP, 0))
             threading.Thread(target=self.start_listening).start()
@@ -117,7 +117,7 @@ class ChatClient:
                     print "Server authenticated and registered with server"
                     print("Client Starting...")
                     self.logged_in = True
-                    self._start_send_thread()
+                    self.start_send_thread()
                 else:
                     print "Authentication failed!Please retry"
                     count += 1
@@ -182,7 +182,8 @@ class ChatClient:
         try:
             print "Command list: list,send < username > < message > and exit. Have fun!"
             inp = [sys.stdin, self.sock]
-            while 1:
+            while True:
+
                 # valid commands: list, send, terminate
                 input_list, output_list, exception_list = select(inp, [], [])
                 for s in input_list:
@@ -295,6 +296,8 @@ class ChatClient:
         }
 
         self.sock.send(pickle.dumps(payload))
+        os.remove(self.username+"_private.pem")
+        os.remove(self.username + "_public.pem")
         self.sock.close()
         os._exit(0)
 
@@ -475,13 +478,6 @@ class ChatClient:
                         sender_name = data_dict["sender_name"]
                         dat = data_dict["data"]
                         print(sender_name + ":>" + dat)
-                        # received_msg = symmetric_decryption(self.dh_session_keys[sender_name],
-                        #                                     message_iv,
-                        #                                     message_tag,
-                        #                                     data_dict["cipher_message"])
-
-            # except Exception as error:
-            #     print "Some Error occured!"
         except KeyboardInterrupt:
             self.perform_server_session_termination()
             os._exit(0)

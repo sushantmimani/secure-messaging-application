@@ -137,6 +137,7 @@ class ChatServer:
 
 
                 elif parsed_data["command"] == "talk-to":
+                    print self.users
                     signature = parsed_data["signature"]
                     message_iv = parsed_data["iv"]
                     message_tag = parsed_data["tag"]
@@ -198,5 +199,5 @@ if __name__ == "__main__":
         print "Server Initialized..."
         cs = ChatServer(server_port, server_ip,server_pub_key, server_pvt_key)
     except KeyboardInterrupt:
-        print "Server Exiting"
+        print "\nServer Exiting"
         os._exit(0)

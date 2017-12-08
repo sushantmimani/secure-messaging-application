@@ -19,7 +19,7 @@ class ChatServer:
         self.users_pubkeys = {}
         self.users_derivedkeys = {}
         self.registered_users = load_users()
-        parsed_data = {}
+        self.client_port = {}
         self.start_thread()
 
     def start_thread(self):
@@ -59,6 +59,7 @@ class ChatServer:
                         client_socket.send(pickle.dumps(payload))
                         data_1 = client_socket.recv(self.BUFFER_SIZE)
                         data = pickle.loads(data_1)
+                        client_port = data["client_port"]
                         data = symmetric_decryption(user_derived_key, data["iv"], data["tag"], data["message"]).split(
                             "\n")
                         n2 = data[0]
@@ -69,7 +70,8 @@ class ChatServer:
                         file.close()
                         if n2 == nonce_2:
                             self.users[username] = address
-                            print username, self.users[username]
+                            self.client_port[username] = client_port
+                            print self.client_port
                             self.users_pubkeys[username] = username + "_public.pem"
                             self.users_derivedkeys[username] = user_derived_key
                             nonce_4 = str(time.time())
@@ -147,15 +149,13 @@ class ChatServer:
                         salt = os.urandom(16)
                         shared_key_for_client = generate_key_from_password("password", salt)
                         ticket_to = pickle.dumps({"shared_key": shared_key_for_client, "sender_name": user,
-                                                  "sender_addr": (self.users[user][0], self.users[user][1]),
+                                                  "sender_addr": self.client_port[user],
                                                   "nonce": nonce_1})
                         receiver_res, iv, tag = symmetric_encryption(self.users_derivedkeys.get(client_name),
                                                                      ticket_to)
-                        # not sure about the shared_key part here. It is supposed to be the key, which will be used to communicate between A & B
 
                         message_to_receiver = pickle.dumps({"shared_key": shared_key_for_client,
-                                                            "receiver": (
-                                                            self.users[client_name][0], self.users[client_name][1]),
+                                                            "receiver": self.client_port[user],
                                                             "ticket_to": receiver_res,
                                                             "nonce": 3})
                         enc_response, iv1, tag1 = symmetric_encryption(self.users_derivedkeys.get(user),

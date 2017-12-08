@@ -1,4 +1,4 @@
-import socket, time, random, binascii, pickle, os, ConfigParser
+import socket, time, random, binascii, pickle, os, ConfigParser, sys
 from threading import Thread
 from CryptoUtils import create_hash, load_users, load_public_key, symmetric_encryption, asymmetric_decryption, \
     load_private_key, generate_key_from_password, keygen, symmetric_decryption, verify_signature
@@ -13,6 +13,7 @@ class ChatServer:
         """initialize the chatServer on the UDP port."""
         self.PORT = int(port)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind(("", self.PORT))
         self.sock.listen(20)
         self.users = {}
@@ -37,8 +38,10 @@ class ChatServer:
                 if parsed_data["command"] == "login":
                     if self.registered_users.get(parsed_data["username"]) is None:
                         connection_socket.send("User not registered")
+                        continue
                     if self.users.get(parsed_data["username"]):
                         connection_socket.send("Already logged in")
+                        continue
                     else:
                         cha = str(time.time()) + " " + str(random.random())
                         connection_socket.send(cha)
@@ -86,6 +89,7 @@ class ChatServer:
                                 connection_socket.send(pickle.dumps(payload))
                         else:
                             connection_socket.send("Authentication failed!")
+
                 elif parsed_data["command"] == "list":
                     signature = parsed_data["signature"]
                     user = parsed_data["user"]
@@ -184,11 +188,15 @@ class ChatServer:
 
 
 if __name__ == "__main__":
-    config = ConfigParser.ConfigParser()
-    config.read('config/server.ini')
-    server_port = config.getint('server_config','port')
-    server_ip = config.get('server_config', 'ip')
-    server_pub_key = config.get('server_config','pub_key')
-    server_pvt_key = config.get('server_config', 'priv_key')
-    print "Server Initialized..."
-    cs = ChatServer(server_port, server_ip,server_pub_key, server_pvt_key)
+    try:
+        config = ConfigParser.ConfigParser()
+        config.read('config/server.ini')
+        server_port = config.getint('server_config','port')
+        server_ip = config.get('server_config', 'ip')
+        server_pub_key = config.get('server_config','pub_key')
+        server_pvt_key = config.get('server_config', 'priv_key')
+        print "Server Initialized..."
+        cs = ChatServer(server_port, server_ip,server_pub_key, server_pvt_key)
+    except KeyboardInterrupt:
+        print "Server Exiting"
+        os._exit(0)

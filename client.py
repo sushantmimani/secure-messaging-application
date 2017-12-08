@@ -7,6 +7,14 @@ from CryptoUtils import create_hash, keygen, generate_key_from_password, load_pu
                         symmetric_encryption, asymmetric_encryption, generate_password_hash, symmetric_decryption,\
                         serialize_public_key, sign_message, serialize_private_key, get_diffie_hellman_params, generate_key_from_password_no_salt
 
+def get_free_port():
+    # get free port : creating a new socket (port is randomly assigned), and close it
+    sock = socket.socket()
+    sock.bind(('', 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    return int(port)
+
 
 class ChatClient:
 
@@ -20,10 +28,11 @@ class ChatClient:
         self.permitted_size = self.BUFFER_SIZE-32
         self.username = raw_input("Please enter username: ")
         self.password = getpass.getpass("Please enter password: ")
+        self.client_port = get_free_port()
         self.sIP = args.sIP
         self.UDP_PORT = int(args.sp)
         self.private_key, self.public_key = keygen()
-        serialize_private_key(self.private_key, "sushant")
+        serialize_private_key(self.private_key, self.username)
         self.password_hash = generate_password_hash(self.username, self.password)
         self.salt = os.urandom(16)
         self.derived_key = generate_key_from_password(self.password_hash, self.salt)
@@ -35,8 +44,23 @@ class ChatClient:
         self.message_for_client = ""
         self.dh_session_keys = {}
         self.sock.connect((self.sIP, self.UDP_PORT))
+        self.send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.recv_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._start_recv_sock()
 
-    def start_client_prompt(self):
+
+    def _start_send_thread(self):
+        threading.Thread(target=self.start).start()
+
+    def _start_recv_sock(self):
+        try:
+            print "receiver socket is bound to", self.client_port
+            self.recv_socket.bind(('127.0.0.1', self.client_port))
+            threading.Thread(target=self.start_listening).start()
+        except socket.error:
+            print 'Failed to start the socket for receiving messages'
+
+    def login(self):
         # Parameters to allow server to register a user on sign-in
         params = {
             "command": "login",
@@ -82,22 +106,13 @@ class ChatClient:
             if n3 == nonce_3:
                 print "Server authenticated and registered with server"
                 print("Client Starting...")
-                # threading.Thread(target=self.start_listening()).start()
-                self.start()
+                self._start_send_thread()
             else:
                 print "Authentication failed!Terminating"
                 sys.exit()
         else:
             print "Authentication failed!Terminating"
             sys.exit()
-
-    # Display messages received from other signed-in users
-    def print_received_message(self):
-        self.start_listening()
-        # data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
-        # print("<-- <From {0}:{1}:{2}>  " + json.loads(data)["message"]).format(address[0],
-        #                                                                        address[1],
-        #                                                                        json.loads(data)["user"])
 
     def print_user_list(self, input_array):
         if len(input_array) > 1:  # List followed by anything is an invalid command and will not be processed
@@ -116,7 +131,6 @@ class ChatClient:
                 "signature": signature
             }
 
-            # self.sock.sendto(json.dumps({"command": "list"}), (self.sIP, self.UDP_PORT))
             self.sock.send(pickle.dumps(new_message))
             data_1 = self.sock.recv(self.BUFFER_SIZE)
             data = pickle.loads(data_1)
@@ -150,15 +164,13 @@ class ChatClient:
     # This function handles the overall working of the client
     def start(self):
         try:
-            inp = [sys.stdin, self.sock]
+            inp = [sys.stdin]
             while 1:
                 # valid commands: list, send, terminate
                 print('--> Enter command:')
                 input_list, output_list, exception_list = select(inp, [], [])
                 for s in input_list:
-                    if s == self.sock:
-                        self.print_received_message()
-                    elif s == sys.stdin:
+                    if s == sys.stdin:
                         input = raw_input()
                         input_array = input.split(" ")
                         # Perform different actions based on the command
@@ -209,9 +221,9 @@ class ChatClient:
                                         "signature": signature
                                     }
 
-                                    self.sock.sendto(pickle.dumps(new_message), (self.sIP, self.UDP_PORT))
+                                    self.sock.send(pickle.dumps(new_message))
                                     # receive message from server with ticket-to-client etc
-                                    data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
+                                    data= self.sock.recv(self.BUFFER_SIZE)  # buffer size is 65507 bytes
                                     if data == "null":
                                         print("User doesn't exist!")
                                     else:
@@ -248,25 +260,8 @@ class ChatClient:
                                             "iv": receiver_iv,
                                             "tag": receiver_tag
                                         }
+                                        self.send_socket.sendto(pickle.dumps(payload), (receiver_address, receiver_address_port-1))
 
-                                        self.sock.sendto(pickle.dumps(payload), (receiver_address, receiver_address_port))
-
-                                        # self.sock.sendto(pickle.dumps(new_message), (self.sIP, self.UDP_PORT))
-                                        # message = ' '.join(input_array[2:])
-                                        # if len(message.encode('utf-8')) > self.permitted_size:
-                                        #     while len(message.encode('utf-8'))>self.permitted_size:
-                                        #         toSend=message[0:self.permitted_size]
-                                        #         self.sock.sendto(json.dumps({
-                                        #             "user": self.username, "message": toSend}),
-                                        #             (temp[0], int(temp[1])))
-                                        #         message = message[self.permitted_size:]
-                                        #     self.sock.sendto(json.dumps({
-                                        #         "user": self.username, "message": message}),
-                                        #         (temp[0], int(temp[1])))
-                                        # else:
-                                        #     self.sock.sendto(json.dumps({
-                                        #         "user":self.username,"message":' '.join(input_array[2:])}),
-                                        #         (temp[0], int(temp[1])))
                         else:
                             print("Invalid Input!")
         except KeyboardInterrupt:
@@ -304,7 +299,8 @@ class ChatClient:
 
     def start_listening(self):
         print "started receiving ...."
-        data, address = self.sock.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
+        data, address = self.recv_socket.recvfrom(self.BUFFER_SIZE)  # buffer size is 65507 bytes
+        print data
         data_dict = pickle.loads(data)
         if "message" in data_dict.keys():
             message = data_dict["message"]
@@ -380,7 +376,7 @@ class ChatClient:
                     "client": self.username
                 }
 
-                self.sock.sendto(pickle.dumps(payload), (sender_address, sender_address_port))
+                self.send_socket.sendto(pickle.dumps(payload), (sender_address, sender_address_port))
                 # starting diffie helmann key exchange here now
             if message == "start_dh":
                 self.perform_diffie_hellman(data_dict["client"], self.username, data_dict["encrypted_response"])
@@ -416,7 +412,7 @@ class ChatClient:
                     "tag": tag
                 }
 
-                self.sock.sendto(pickle.dumps(payload), self.sender_addresses[sender_name])
+                self.send_socket.sendto(pickle.dumps(payload), self.sender_addresses[sender_name])
 
             if message == "diffie-step2":
                 # This will be received by the sender always. In case for A->B, A will receive this message
@@ -455,7 +451,7 @@ class ChatClient:
             "sender_name": self.username
         }
 
-        self.sock.sendto(pickle.dumps(payload), address)
+        self.send_socket.sendto(pickle.dumps(payload), address)
 
     def perform_diffie_hellman(self, client, sender, nonce_message):
         shared_key = self.client_shared_keys[client]
@@ -475,7 +471,7 @@ class ChatClient:
             "iv": iv,
             "tag": tag
         }
-        self.sock.sendto(pickle.dumps(payload), self.client_addresses[client])
+        self.send_socket.sendto(pickle.dumps(payload), self.client_addresses[client])
 
 
 if __name__ == "__main__":
@@ -484,5 +480,5 @@ if __name__ == "__main__":
     parser.add_argument("-sp", "--sp")
     args = parser.parse_args()
     cs = ChatClient(args)
-    cs.start_client_prompt()
+    cs.login()
 

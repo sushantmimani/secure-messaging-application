@@ -31,10 +31,7 @@ class ChatServer:
         while True:
             client_socket = connection_socket
             data = client_socket.recv(self.BUFFER_SIZE)
-            try:
-                parsed_data = pickle.loads(data)
-            except ValueError:
-                parsed_data = pickle.loads(data)
+            parsed_data = pickle.loads(data)
             if parsed_data["command"] == "login":
                 if self.registered_users.get(parsed_data["username"]) is None:
                     client_socket.send("User not registered")
@@ -72,6 +69,7 @@ class ChatServer:
                         file.close()
                         if n2 == nonce_2:
                             self.users[username] = address
+                            print username, self.users[username]
                             self.users_pubkeys[username] = username + "_public.pem"
                             self.users_derivedkeys[username] = user_derived_key
                             nonce_4 = str(time.time())

@@ -5,16 +5,16 @@ from CryptoUtils import create_hash, load_users, load_public_key, symmetric_encr
 
 
 class ChatServer:
-    def __init__(self, port, ip, pub_key, priv_key):
+    def __init__(self, ip, port, pub_key, priv_key):
         self.server_pub_key = load_public_key(pub_key)
         self.server_pvt_key = load_private_key(priv_key)
         self.BUFFER_SIZE = 65507
-        self.UDP_IP = ip
         """initialize the chatServer on the UDP port."""
+        self.IP = ip
         self.PORT = int(port)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.bind(("", self.PORT))
+        self.sock.bind((self.IP, self.PORT))
         self.sock.listen(20)
         self.users = {}
         self.users_pubkeys = {}
@@ -193,11 +193,16 @@ if __name__ == "__main__":
         config = ConfigParser.ConfigParser()
         config.read('config/server.ini')
         server_port = config.getint('server_config','port')
-        server_ip = config.get('server_config', 'ip')
-        server_pub_key = config.get('server_config','pub_key')
-        server_pvt_key = config.get('server_config', 'priv_key')
+        server_pub_key = config.get('server_config','server_pub_key')
+        server_pvt_key = config.get('server_config', 'server_priv_key')
+        server_ip = socket.gethostbyname(socket.gethostname())
+        config_handle = open('config/client.ini','w')
+        config.read('config/client.ini')
+        config.set('server_config', 'ip', server_ip)
+        config.write(config_handle)
+        config_handle.close()
         print "Server Initialized..."
-        cs = ChatServer(server_port, server_ip,server_pub_key, server_pvt_key)
+        cs = ChatServer(server_ip, server_port, server_pub_key, server_pvt_key)
     except KeyboardInterrupt:
         print "\nServer Exiting"
         os._exit(0)

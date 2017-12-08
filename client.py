@@ -1,4 +1,4 @@
-import argparse, socket, json, sys, time, binascii, os, pickle, getpass, ast
+import argparse, socket, json, sys, time, binascii, os, pickle, getpass, ast, ConfigParser
 import threading
 import math
 
@@ -18,19 +18,20 @@ def get_free_port():
 
 class ChatClient:
 
-    def __init__(self, args):
+    def __init__(self, port, ip, pub_key):
         self.exit_from_server_nonce = ""
         self.terminate_nonce = ""
         self.clients_terminated = 0
         self.terminate = "terminate"
         self.exit = "exit"
         self.BUFFER_SIZE = 65507
+        self.server_pub_key = load_public_key(pub_key)
         self.permitted_size = self.BUFFER_SIZE-32
         self.username = raw_input("Please enter username: ")
         self.password = getpass.getpass("Please enter password: ")
         self.client_port = get_free_port()
-        self.sIP = args.sIP
-        self.UDP_PORT = int(args.sp)
+        self.sIP = ip
+        self.UDP_PORT = port
         self.private_key, self.public_key = keygen()
         serialize_private_key(self.private_key, self.username)
         self.password_hash = generate_password_hash(self.username, self.password)
@@ -79,7 +80,6 @@ class ChatClient:
         h2 = create_hash(challenge[1])
         answer = str(int(binascii.hexlify(h1), 16) & int(binascii.hexlify(h2), 16))
         nonce_1 = str(time.time())
-        self.server_pub_key = load_public_key("server_public.pem")
         message = answer + "\n"+self.username+"\n"+self.password_hash+"\n"+self.salt+"\n"+nonce_1
         encrypted_message = asymmetric_encryption(self.server_pub_key, message)
         self.sock.send(encrypted_message)
@@ -494,10 +494,11 @@ class ChatClient:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-sip", "--sIP")
-    parser.add_argument("-sp", "--sp")
-    args = parser.parse_args()
-    cs = ChatClient(args)
+    config = ConfigParser.ConfigParser()
+    config.read('config/client.ini')
+    server_port = config.getint('server_config', 'port')
+    server_ip = config.get('server_config', 'ip')
+    server_pub_key = config.get('server_config', 'server_pub_key')
+    cs = ChatClient(server_port, server_ip, server_pub_key)
     cs.login()
 

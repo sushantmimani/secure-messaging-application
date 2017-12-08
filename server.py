@@ -1,15 +1,15 @@
-import argparse, socket, time, random, binascii, pickle, os, threading
+import socket, time, random, binascii, pickle, os, ConfigParser
 from threading import Thread
 from CryptoUtils import create_hash, load_users, load_public_key, symmetric_encryption, asymmetric_decryption, \
     load_private_key, generate_key_from_password, keygen, symmetric_decryption, verify_signature
 
 
 class ChatServer:
-    def __init__(self, port):
-        self.server_pub_key = load_public_key("server_public.pem")
-        self.server_pvt_key = load_private_key("server_private.pem")
+    def __init__(self, port, ip, pub_key, priv_key):
+        self.server_pub_key = load_public_key(pub_key)
+        self.server_pvt_key = load_private_key(priv_key)
         self.BUFFER_SIZE = 65507
-        self.UDP_IP = "127.0.0.1"
+        self.UDP_IP = ip
         """initialize the chatServer on the UDP port."""
         self.PORT = int(port)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -185,8 +185,11 @@ class ChatServer:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-sp", "--sp")
-    args = parser.parse_args()
+    config = ConfigParser.ConfigParser()
+    config.read('config/server.ini')
+    server_port = config.getint('server_config','port')
+    server_ip = config.get('server_config', 'ip')
+    server_pub_key = config.get('server_config','pub_key')
+    server_pvt_key = config.get('server_config', 'priv_key')
     print "Server Initialized..."
-    cs = ChatServer(args.sp)
+    cs = ChatServer(server_port, server_ip,server_pub_key, server_pvt_key)

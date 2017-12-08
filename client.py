@@ -20,12 +20,10 @@ class ChatClient:
         self.nonceN2 = ""
         self.nonceN3 = ""
         self.nonce = ""
-        self.clients_terminated = 0
         self.disconnect = "disconnect"
         self.exit = "exit"
         self.BUFFER_SIZE = 65507
         self.server_pub_key = load_public_key(pub_key)
-        self.permitted_size = self.BUFFER_SIZE-32
         self.username = ""
         self.password = ""
         self.sIP = ip
@@ -197,7 +195,10 @@ class ChatClient:
                         elif command_val == self.exit:
                             if len(input_array) != 1:
                                 print "Incorrect usage. Correct usage 'exit' to exit from server"
+                            for key in self.dh_session_keys:
+                                self.perform_client_session_termination(key)
                             self.perform_server_session_termination()
+
                         elif command_val == self.disconnect:
                             if len(input_array) != 2:
                                 print "incorrect usage. Correct usage disconnect <client_name>"
@@ -208,7 +209,7 @@ class ChatClient:
                         # user is trying to send message to the receiver
                         elif command_val == "send":
                             if len(input_array) < 3:
-                                print("Invalid Input! 222")
+                                print("Invalid Input!")
                             else:
                                 chat_with_user = input_array[1]
                                 self.message_for_client = " ".join(input_array[2:])
@@ -220,7 +221,6 @@ class ChatClient:
                                     message = nonce_l
                                     ct, iv, tag = symmetric_encryption(self.derived_key, message)
                                     signature = sign_message(self.private_key, ct)
-                                    self.clients_terminated = 0
                                     if(chat_with_user == self.username):
                                         print('Sender and receiver are the same.')
                                         continue
@@ -357,6 +357,7 @@ class ChatClient:
                             }
                             self.send_socket.sendto(pickle.dumps(terminate_valid_payload), self.is_user_address_available(sender_user))
                             del self.client_shared_keys[data_dict["user"]]
+                            del self.dh_session_keys[data_dict["user"]]
 
                     # this message is received by client(client B) for a chat request initiated bycleint B for A->B comm
                     if message == "chat_request":

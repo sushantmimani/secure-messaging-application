@@ -116,7 +116,7 @@ class ChatClient:
 
     def print_user_list(self, input_array):
         if len(input_array) > 1:  # List followed by anything is an invalid command and will not be processed
-            print("Invalid Input!")
+            print("Invalid Input! 1111")
         else:
             nonce_l = str(time.time())
             message = nonce_l
@@ -173,16 +173,17 @@ class ChatClient:
                     if s == sys.stdin:
                         input = raw_input()
                         input_array = input.split(" ")
+                        command_val = input_array[0].strip()
                         # Perform different actions based on the command
-                        if input_array[0] == "list":
+                        if command_val == "list":
                             self.print_user_list(input_array)
-                        if input_array[0] == self.exit:
+                        elif command_val == self.exit:
                             if len(input_array) != 1:
                                 print "Incorrect usage. Correct usage 'exit' to exit from server"
                             # if len(self.client_shared_keys) != self.clients_terminated:
                             #     print "Please teminate all clients connections before "
                             self.perform_server_session_termination()
-                        if input_array[0] == self.terminate:
+                        elif command_val == self.terminate:
                             if len(input_array) != 2:
                                 print "incorrect usage. Correct usage terminate <client_name>"
                             if (input_array[1] not in self.client_shared_keys.keys()) or (not self.is_user_address_available(input_array[1])):
@@ -190,9 +191,9 @@ class ChatClient:
                             else:
                                 self.perform_client_session_termination(input_array[1])
                         # user is trying to send message to the receiver
-                        elif input_array[0] == "send":
+                        elif command_val == "send":
                             if len(input_array) < 3:
-                                print("Invalid Input!")
+                                print("Invalid Input! 222")
                             else:
                                 chat_with_user = input_array[1]
                                 self.message_for_client = input_array[2]
@@ -263,7 +264,9 @@ class ChatClient:
                                         self.send_socket.sendto(pickle.dumps(payload), (receiver_address, receiver_address_port))
 
                         else:
-                            print("Invalid Input!")
+                            if len(command_val) !=0:
+                                print("Invalid Input ------!")
+                                print "valid commands: list and send <username> <message>"
 
         except KeyboardInterrupt:
             self.sock.sendto(json.dumps({"command": "terminate", "username": self.username}), (self.sIP, self.UDP_PORT))
@@ -431,23 +434,35 @@ class ChatClient:
                         session_key_val_sender = math.pow(float(plaintext), b) % p
 
                         session_key = generate_key_from_password_no_salt(str(session_key_val_sender))
+                        # sender_name is B in communication from A->B
                         self.dh_session_keys[sender_name] = session_key
-                        self.send_message_to_client(self.message_for_client, self.dh_session_keys[sender_name], self.client_addresses[sender_name])
+                        # sender_name is the name of sender who sent this message
+                        self.send_message_to_client(self.message_for_client, self.dh_session_keys[sender_name],
+                                                    self.client_addresses[sender_name])
+                    #  this is message receiving part in diffie helman message exchange. B receives this message in
+                    # communication  A->B
                     if message == "chat_message":
-                        data = data_dict["data"]
+                        receivd_data = data_dict["data"]
                         message_iv = data_dict["iv"]
                         message_tag = data_dict["tag"]
                         sender_name = data_dict["sender_name"]
-                        print(sender_name + ":>" + data)
+                        dat = data_dict["data"]
+                        print(sender_name + ":>" + dat)
+                        received_msg = symmetric_decryption(self.dh_session_keys[sender_name],
+                                                            message_iv,
+                                                            message_tag,
+                                                            data_dict["cipher_message"])
+
         except Exception as error:
-            print "What happened", error
+            print "Some Error occured!"
 
     def send_message_to_client(self, message, session_key, address):
-        # ciphertext, iv, tag = symmetric_encryption(session_key, message)
+        text_data, clien_iv, clien_tag = symmetric_encryption(session_key, self.message_for_client)
         payload = {
             "message": "chat_message",
-            "iv": "iv",
-            "tag": "tag",
+            "iv": clien_iv,
+            "tag": clien_tag,
+            "cipher_message": text_data,
             "data": self.message_for_client,
             "sender_name": self.username
         }

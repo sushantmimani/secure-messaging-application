@@ -246,14 +246,8 @@ class ChatClient:
                                         receiver_address = decrypted_response_dict["receiver"][0]
                                         receiver_address_port = decrypted_response_dict["receiver"][1]
                                         self.client_addresses[chat_with_user] = (receiver_address, receiver_address_port)
-                                        # uncomment below lines later
-                                        # if nonce_response_from_server != int(nonce_l) + 1:
-                                        #     print "invalid response from server, nonce did not match"
-                                        #     continue
+
                                         ticket_to_receiver = decrypted_response_dict["ticket_to"]
-                                        # send the ticket_to_receiver to the receiver client, the receiver client can
-                                        # decrypt the message using its
-                                        # key(password) and respond back with nounce encrptd by the shared key
                                         payload = {
                                             "ticket_to_receiver": ticket_to_receiver,
                                             "message": "chat_request",

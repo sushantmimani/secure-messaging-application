@@ -123,7 +123,7 @@ class ChatServer:
                             "tag": res_tag
                         }
 
-                        # client_socket.send(pickle.dumps(payload))
+                        connection_socket.send(pickle.dumps(payload))
                         # deleting the derived key for the user
                         del self.users_derivedkeys[user]
                         del self.users[user]
@@ -173,7 +173,6 @@ class ChatServer:
                                        "is_valid_user": True}
                             connection_socket.send(pickle.dumps(payload))
         except:
-            print "Connection issues. Terminating"
             connection_socket.close()
         finally:
             print "Connection terminated for ", address

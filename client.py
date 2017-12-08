@@ -116,7 +116,7 @@ class ChatClient:
 
     def print_user_list(self, input_array):
         if len(input_array) > 1:  # List followed by anything is an invalid command and will not be processed
-            print("Invalid Input! 1111")
+            print("Invalid Input!")
         else:
             nonce_l = str(time.time())
             message = nonce_l
@@ -180,8 +180,6 @@ class ChatClient:
                         elif command_val == self.exit:
                             if len(input_array) != 1:
                                 print "Incorrect usage. Correct usage 'exit' to exit from server"
-                            # if len(self.client_shared_keys) != self.clients_terminated:
-                            #     print "Please teminate all clients connections before "
                             self.perform_server_session_termination()
                         elif command_val == self.terminate:
                             if len(input_array) != 2:
@@ -271,9 +269,10 @@ class ChatClient:
         except KeyboardInterrupt:
             self.sock.sendto(json.dumps({"command": "terminate", "username": self.username}), (self.sIP, self.UDP_PORT))
             self.sock.close()
+        except Exception as error:
+            print "Corresponding thread killed", error
 
     def perform_server_session_termination(self):
-        user_name = self.username
         term_nonce = str(time.time())
         self.exit_from_server_nonce = term_nonce
         terminate_encrypted_data, term_iv, term_tag = symmetric_encryption(self.derived_key, term_nonce)
@@ -287,7 +286,9 @@ class ChatClient:
             "tag": term_tag
         }
 
-        self.sock.sendto(pickle.dumps(payload), (self.sIP, self.UDP_PORT))
+        self.sock.send(pickle.dumps(payload))
+        self.sock.close()
+        os._exit(0)
 
     def perform_client_session_termination(self, client):
         self.terminate_nonce = str(time.time())
@@ -299,7 +300,7 @@ class ChatClient:
             "iv": dis_iv,
             "tag": dis_tag
         }
-        self.sock.sendto(pickle.dumps(payload_to_send), self.is_user_address_available(client))
+        self.send_socket.sendto(pickle.dumps(payload_to_send), self.is_user_address_available(client))
 
     def start_listening(self):
         try:
@@ -448,13 +449,14 @@ class ChatClient:
                         sender_name = data_dict["sender_name"]
                         dat = data_dict["data"]
                         print(sender_name + ":>" + dat)
-                        received_msg = symmetric_decryption(self.dh_session_keys[sender_name],
-                                                            message_iv,
-                                                            message_tag,
-                                                            data_dict["cipher_message"])
+                        # received_msg = symmetric_decryption(self.dh_session_keys[sender_name],
+                        #                                     message_iv,
+                        #                                     message_tag,
+                        #                                     data_dict["cipher_message"])
 
         except Exception as error:
             print "Some Error occured!"
+            print "Corresponding thread killed"
 
     def send_message_to_client(self, message, session_key, address):
         text_data, clien_iv, clien_tag = symmetric_encryption(session_key, self.message_for_client)

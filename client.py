@@ -197,7 +197,7 @@ class ChatClient:
                                 print("Invalid Input! 222")
                             else:
                                 chat_with_user = input_array[1]
-                                self.message_for_client = input_array[2]
+                                self.message_for_client = " ".join(input_array[2:])
                                 user_address = self.is_user_address_available(chat_with_user)
                                 if (chat_with_user in self.dh_session_keys.keys()) and user_address:
                                     print("sending message to client")
@@ -319,7 +319,7 @@ class ChatClient:
                                                                             server_del_tag, server_delete_message)
                     if float(self.exit_from_server_nonce) + 1 == float(deleted_server_decrypted_message):
                         self.derived_key = ""
-                        print "Deleted derived key fro server from client: " + self.username
+                        print "Deleted derived key for server from client: " + self.username
 
                 if message == "client_deleted":
                     del_iv = data_dict["iv"]
@@ -346,7 +346,7 @@ class ChatClient:
                             "tag": res_tag,
                             "user": self.username
                         }
-                        self.sock.sendto(pickle.dumps(terminate_valid_payload), self.is_user_address_available(sender_user))
+                        self.send_socket.sendto(pickle.dumps(terminate_valid_payload), self.is_user_address_available(sender_user))
                         del self.client_shared_keys[data_dict["user"]]
 
                 # this message is received by client(client B) for a chat request initiated bycleint B for A->B comm

@@ -21,7 +21,7 @@ class ChatClient:
         self.nonceN3 = ""
         self.nonce = ""
         self.clients_terminated = 0
-        self.terminate = "terminate"
+        self.disconnect = "disconnect"
         self.exit = "exit"
         self.BUFFER_SIZE = 65507
         self.server_pub_key = load_public_key(pub_key)
@@ -198,9 +198,9 @@ class ChatClient:
                             if len(input_array) != 1:
                                 print "Incorrect usage. Correct usage 'exit' to exit from server"
                             self.perform_server_session_termination()
-                        elif command_val == self.terminate:
+                        elif command_val == self.disconnect:
                             if len(input_array) != 2:
-                                print "incorrect usage. Correct usage terminate <client_name>"
+                                print "incorrect usage. Correct usage disconnect <client_name>"
                             if (input_array[1] not in self.client_shared_keys.keys()) or (not self.is_user_address_available(input_array[1])):
                                 print "connection to " + input_array[1] + " not established yet."
                             else:

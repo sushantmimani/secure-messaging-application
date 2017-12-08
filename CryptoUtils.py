@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 salt_constant = os.urandom(16)
 
 def get_diffie_hellman_params():
-    return {"a": 5, "b":6, "p":7, "g": 11}
+    return {"a": 4, "b":3, "p":23, "g": 9}
 
 
 def serialize_public_key(key):

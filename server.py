@@ -141,7 +141,6 @@ class ChatServer:
                     validity = verify_signature(user + "_public.pem", signature, parsed_data["ciphertext"])
                     if validity == "VERIFIED":
                         nonce_1 = str(time.time())
-                        private_key, public_key = self.generate_session_key_for()
                         # shared_key part is missing here, need to figure out what should be the public key
                         client_name = parsed_data["chat_with"]
 

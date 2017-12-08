@@ -155,7 +155,7 @@ class ChatServer:
                                                                      ticket_to)
 
                         message_to_receiver = pickle.dumps({"shared_key": shared_key_for_client,
-                                                            "receiver": self.client_port[user],
+                                                            "receiver": self.client_port[client_name],
                                                             "ticket_to": receiver_res,
                                                             "nonce": 3})
                         enc_response, iv1, tag1 = symmetric_encryption(self.users_derivedkeys.get(user),

@@ -429,18 +429,19 @@ class ChatClient:
                         diffie_msg_step1_iv = data_dict["iv"]
                         diffie_msg_step1_tag = data_dict["tag"]
                         # plaintext is g^a mod p, plaintest=x in DH algorithm
-                        plaintext_data = symmetric_decryption(self.client_shared_keys[sender_name], diffie_msg_step1_iv,
+                        plaintext_data = symmetric_decryption(self.client_shared_keys[sender_name],
+                                                              diffie_msg_step1_iv,
                                                               diffie_msg_step1_tag, part)
                         plaintext_data_dict = pickle.loads(plaintext_data)
                         x = plaintext_data_dict["x"]
                         if plaintext_data_dict["nonceN2"] == self.nonceN2:
                             # computing the power(x, b) mod b part
                             session_key_val = math.pow(float(x), b) % p
-                            session_key = generate_key_from_password_no_salt(
-                                str((session_key_val * params["b"]) % params["p"]))
+                            print session_key_val
+                            session_key = generate_key_from_password_no_salt(str(session_key_val))
                             self.dh_session_keys[sender_name] = session_key
 
-                            # this is the creation of x = (g^b mod p) part from side B
+                            # this is the creation of y = (g^b mod p) part from side B
                             gPowBModP = math.pow(g, b) % params["p"]
                             powPart = gPowBModP
                             shard_key = self.client_shared_keys[sender_name]
@@ -461,7 +462,7 @@ class ChatClient:
                     if message == "diffie-step2":
                         # This will be received by the sender always. In case for A->B, A will receive this message
                         params = get_diffie_hellman_params()
-                        b = params["b"]
+                        a = params["a"]
                         p = params["p"]
                         sender_name = data_dict["sender-name"]
                         # plaintext is g^b mod p
@@ -472,8 +473,8 @@ class ChatClient:
                         plaintext = symmetric_decryption(self.client_shared_keys[sender_name], diffie_msg_iv,
                                                          diffie_msg_tag, part)
                         # computing the power(y, a) mod p part here.
-                        session_key_val_sender = math.pow(float(plaintext), b) % p
-
+                        session_key_val_sender = math.pow(float(plaintext), a) % p
+                        print session_key_val_sender
                         session_key = generate_key_from_password_no_salt(str(session_key_val_sender))
                         # sender_name is B in communication from A->B
                         self.dh_session_keys[sender_name] = session_key
@@ -483,18 +484,17 @@ class ChatClient:
                     # this is message receiving part in diffie helman message exchange. B receives this message in
                     # communication  A->B
                     if message == "chat_message":
-                        receivd_data = data_dict["data"]
                         message_iv = data_dict["iv"]
                         message_tag = data_dict["tag"]
                         sender_name = data_dict["sender_name"]
-                        dat = data_dict["data"]
-                        print(sender_name + ":>" + dat)
+                        res = symmetric_decryption(self.dh_session_keys[sender_name][:32], message_iv, message_tag, data_dict["cipher_message"])
+                        print(sender_name + ":>" + res)
         except KeyboardInterrupt:
             self.perform_server_session_termination()
             os._exit(0)
 
     def send_message_to_client(self, message, session_key, address):
-        text_data, clien_iv, clien_tag = symmetric_encryption(session_key, self.message_for_client)
+        text_data, clien_iv, clien_tag = symmetric_encryption(session_key[:32], self.message_for_client)
         payload = {
             "message": "chat_message",
             "iv": clien_iv,
@@ -506,6 +506,7 @@ class ChatClient:
 
         self.send_socket.sendto(pickle.dumps(payload), address)
 
+    # A starts this communication, send (g^a mod p) to B
     def perform_diffie_hellman(self, client, sender, nonce_message):
         self.nonceN2 = nonce_message
         self.nonceN3 = str(time.time())

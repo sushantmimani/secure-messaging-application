@@ -1,4 +1,4 @@
-import base64, os, binascii, json
+import base64, os, binascii, json, hashlib
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes, ciphers
@@ -72,15 +72,8 @@ def generate_key_from_password(password, salt):
     key = kdf.derive(password)
     return key
 
-def generate_key_from_password_no_salt(password):
-    kdf = Scrypt(salt=salt_constant,
-                 length=32,
-                 n=2 ** 14,
-                 r=8,
-                 p=1,
-                 backend=default_backend())
-    key = kdf.derive(password)
-    return key
+def generate_key_from_password_no_salt(passkey):
+    return hashlib.sha256(str(passkey).encode()).hexdigest()
 
 
 def generate_password_hash(username, password):

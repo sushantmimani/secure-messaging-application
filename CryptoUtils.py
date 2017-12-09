@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 salt_constant = os.urandom(16)
 
 def get_diffie_hellman_params():
-    return {"a": 5, "b":6, "p":7, "g": 11}
+    return {"a": 4, "b":3, "p":23, "g": 9}
 
 
 def serialize_public_key(key):
@@ -99,13 +99,16 @@ def generate_password_hash(username, password):
 
 
 def create_password_hash():
-    passwords = {"sushant": generate_password_hash("sushant", "sushant@1"),
-                 "rohit": generate_password_hash("rohit", "rohit@2"),
-                 "user3": generate_password_hash("user3", "user3@3")}
+    passwords = {
+        "sushant": generate_password_hash("sushant", "sushant@1"),
+         "rohit": generate_password_hash("rohit", "rohit@2"),
+         "user3": generate_password_hash("user3", "user3@3"),
+         "alice": generate_password_hash("alice", "alice"),
+         "bob": generate_password_hash("bob", "bob"),
+    }
     file = open("passwords.json", "w")
     file.write(json.dumps(passwords))
     file.close()
-
 
 def load_users():
     file = open("passwords.json", "r")

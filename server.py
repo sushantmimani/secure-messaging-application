@@ -139,8 +139,6 @@ class ChatServer:
                 elif parsed_data["command"] == "talk-to":
                     print self.users
                     signature = parsed_data["signature"]
-                    message_iv = parsed_data["iv"]
-                    message_tag = parsed_data["tag"]
                     client_user = parsed_data["chat_with"]
                     if client_user not in self.users.keys():
                         payload = {

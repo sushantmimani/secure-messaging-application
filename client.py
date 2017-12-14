@@ -199,6 +199,7 @@ class ChatClient:
                         elif command_val == self.disconnect:
                             if len(input_array) != 2:
                                 print "incorrect usage. Correct usage disconnect <client_name>"
+                                continue
                             if (input_array[1] not in self.client_shared_keys.keys()) or (
                                     not self.is_user_address_available(input_array[1])):
                                 print "connection to " + input_array[1] + " not established yet."
@@ -338,11 +339,11 @@ class ChatClient:
                         deleted_user = data_dict["user"]
                         delete_confirm_nonce = symmetric_decryption(self.client_shared_keys[deleted_user], del_iv,
                                                                     del_tag, data_dict["data"])
-                        if self.terminate_nonce == float(delete_confirm_nonce) + 1:
+                        if float(self.terminate_nonce) == float(delete_confirm_nonce) - 1:
                             print "terminated"
                             del self.client_shared_keys[deleted_user]
-                            print "Exiting now..."
-                            return
+                            del self.dh_session_keys[deleted_user]
+                            continue
 
                     if message == "disconnect":
                         sender_user = data_dict["user"]

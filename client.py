@@ -283,6 +283,7 @@ class ChatClient:
             os._exit(0)
         except Exception as error:
             print "Corresponding thread killed", error
+            os._exit(0)
 
     def perform_server_session_termination(self):
         term_nonce = str(time.time())

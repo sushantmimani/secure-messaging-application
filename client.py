@@ -437,7 +437,7 @@ class ChatClient:
                         if plaintext_data_dict["nonceN2"] == self.nonceN2:
                             # computing the power(x, b) mod b part
                             session_key_val = math.pow(float(x), b) % p
-                            print session_key_val
+                            # print session_key_val
                             session_key = generate_key_from_password_no_salt(str(session_key_val))
                             self.dh_session_keys[sender_name] = session_key
 
@@ -474,7 +474,7 @@ class ChatClient:
                                                          diffie_msg_tag, part)
                         # computing the power(y, a) mod p part here.
                         session_key_val_sender = math.pow(float(plaintext), a) % p
-                        print session_key_val_sender
+                        # print session_key_val_sender
                         session_key = generate_key_from_password_no_salt(str(session_key_val_sender))
                         # sender_name is B in communication from A->B
                         self.dh_session_keys[sender_name] = session_key
